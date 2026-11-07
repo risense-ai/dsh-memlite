@@ -14,7 +14,7 @@
 | M2 | 命令面 | 2 天 | ✅ 已完成 | recall/remember/show/forget/update/attach/tree/chain/sync/status 全命令 |
 | M3 | 系统提示注入 | 2 天 | ✅ 已完成 | MemliteCache + section 注册 + off-turn 刷新 |
 | M4 | 嵌入档接入 | 1 天 | ✅ 已完成 | host + openai-compatible 装配，credentials 集成 |
-| **M5** | **Obsidian 整合** | **1 天** | **📌 本次新增** | `/memlite-import` `/memlite-export` `/memlite-vault-status` 三命令 |
+| **M5** | **Obsidian 整合** | **1 天** | **✅ 已完成（2026-11-07）** | `/memlite-import` `/memlite-export` `/memlite-vault-status` 三命令 |
 | M6 | 文档 + 发布 | 1 天 | 待启动 | README + CHANGELOG + npm 发布 + Hub 提交 |
 
 M7（自动捕获 autoCapture）放到下一阶段，**不在 0.1.0 范围**。
@@ -293,7 +293,7 @@ memlite-obsidian 的 `importVault`/`exportVault` 内部会 open/close 自己的 
 - [x] M2 全命令实现 + 真实注册器测试绿
 - [x] M3 系统提示注入工作 + 60 轮会话无累积
 - [x] M4 嵌入档三档切换正常
-- [ ] M5 Obsidian 整合：三命令工作 + 空串守卫 + dry-run 提示
+- [x] M5 Obsidian 整合：三命令工作 + 空串守卫 + dry-run 提示
 - [ ] M6 npm 发布 + Hub 提交
 - [ ] 与 Rust memlite 库互通（插件能读 Rust 写的库）
 - [ ] 多 agent 不串味
