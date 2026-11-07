@@ -5,14 +5,14 @@
 
 ## 状态
 
-✅ **0.3.0 GUI 配置页完成**（2026-11-07）：在侧栏「插件」页的 memlite 行打开**配置**，
-可视化编辑全部字段，保存写入 profile 的 `cordis.patch.yml`；其余行为保持 0.2.0 架构
-（静态规则、pre-step 召回、status 体检、敏感闸、显式存储 + 读回、收尾 steer、模型工具、16 命令）。
-73 测试全绿；`pnpm build` 同时产出宿主与浏览器 bundle。
+✅ **0.3.1 GUI 配置页 + 本地化展示名完成**（2026-11-08）：在侧栏「插件」页的 **Memlite 记忆**行打开**配置**，
+可视化编辑全部字段，保存写入 profile 的 `cordis.patch.yml`；展示名/描述由 `locale/` 的 `meta` 提供。
+其余行为保持 0.2.0 架构（静态规则、pre-step 召回、status 体检、敏感闸、显式存储 + 读回、收尾 steer、模型工具、16 命令）。
+75 测试全绿；`pnpm build` 同时产出宿主与浏览器 bundle。
 
 ## 与 respire-dsh 的差别
 
-| 面 | respire-dsh | dsh-memlite（0.3.0） |
+| 面 | respire-dsh | dsh-memlite（0.3.1） |
 |---|---|---|
 | 引擎 | `rsrs` CLI 子进程 | 进程内 `@rsrsai/memlite` |
 | 模型读写 | 模型用 shell 跑 `rsrs` | 模型调 `memlite_*` 工具 |
@@ -111,7 +111,7 @@ dsh plugin --profile <profile> add ./dsh-memlite
 ## 测试
 
 ```bash
-pnpm test   # 73 例：真 cordis 核 + 形状忠实宿主服务替身 + 配置表单/浏览器半区契约
+pnpm test   # 75 例：真 cordis 核 + 形状忠实宿主服务替身 + 配置表单/浏览器半区契约
 ```
 
 ## 协议

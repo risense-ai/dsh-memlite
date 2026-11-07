@@ -4,8 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#f8f6f2" />
-<meta name="description" content="dsh-memlite — DeepSeek Harness 的持久本地记忆插件：因果树、零 tool 调用注入、敏感闸、git 同步，与 Rust memlite 数据互通。" />
-<title>dsh-memlite — DeepSeek Harness 的持久本地记忆</title>
+<meta name="description" content="dsh-memlite（Memlite 记忆）— DeepSeek Harness 的持久本地记忆插件：pre-step 召回、因果树、GUI 配置页、敏感闸、git 同步，与 Rust memlite 数据互通。" />
+<title>dsh-memlite（Memlite 记忆）— DeepSeek Harness 的持久本地记忆</title>
 <style>
   :root {
     --paper: #f8f6f2;
@@ -153,15 +153,16 @@
     <span data-en style="display:none">A <span class="accent">growing memory tree</span> for your Harness</span>
   </h1>
   <p class="sub">
-    <span data-zh>dsh-memlite 把 memlite 的因果树记忆装进 DeepSeek Harness：相关记忆自动注入 system prompt，零 tool 调用、不阻塞当前轮；数据落本地 JSONL，与 Rust memlite 双向互通。</span>
-    <span data-en style="display:none">dsh-memlite brings the memlite causal-tree memory into DeepSeek Harness: relevant memories are injected into the system prompt every turn — zero tool calls, never blocking — stored as local JSONL, fully interoperable with Rust memlite.</span>
+    <span data-zh>dsh-memlite 把 memlite 的因果树记忆装进 DeepSeek Harness：每轮 <code>agent/pre-step</code> 同步召回，标题级记忆以 <code>source=memlite</code> 的 user 消息追加——不占 tool 调用；规则 section 恒定注入。侧栏「插件」里还有完整的图形配置页。数据落本地 JSONL，与 Rust memlite 双向互通。</span>
+    <span data-en style="display:none">dsh-memlite brings memlite's causal-tree memory into DeepSeek Harness: synchronous recall in <code>agent/pre-step</code> appends title-level memories as <code>source=memlite</code> user messages — no tool calls — while a static rules section is always injected. A full GUI settings page ships in Sidebar → Plugins. Data stays as local JSONL and interoperates with Rust memlite.</span>
   </p>
   <div class="badges">
-    <span class="badge">v0.1.0</span>
+    <span class="badge">v0.3.1</span>
+    <span class="badge" data-zh>GUI 配置页</span><span class="badge" data-en style="display:none">GUI settings</span>
     <span class="badge" data-zh>16 个命令</span><span class="badge" data-en style="display:none">16 commands</span>
-    <span class="badge" data-zh>零 tool 调用</span><span class="badge" data-en style="display:none">zero tool calls</span>
+    <span class="badge" data-zh>5 个模型工具</span><span class="badge" data-en style="display:none">5 model tools</span>
     <span class="badge" data-zh>与 Rust 互通</span><span class="badge" data-en style="display:none">Rust-compatible</span>
-    <span class="badge gray">dsh 0.2.2-rc.1 实测</span>
+    <span class="badge gray">75 测试</span>
     <span class="badge gray">MIT</span>
   </div>
   <div class="cta">
@@ -170,44 +171,53 @@
   </div>
 
   <div class="flow" id="how">
-    <svg viewBox="0 0 760 190" role="img" aria-label="injection timing">
+    <svg viewBox="0 0 760 210" role="img" aria-label="pre-step recall timing">
       <defs>
         <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
           <path d="M0,0 L10,5 L0,10 z" fill="#6b675f"/>
         </marker>
       </defs>
       <g font-family="ui-monospace, Menlo, monospace" font-size="13" fill="#2b2a27">
-        <rect x="16"  y="56" width="128" height="46" rx="10" fill="#eef3ee" stroke="#3e6b4f"/>
-        <text x="80"  y="76" text-anchor="middle">inbox/inserted</text>
-        <text x="80"  y="92" text-anchor="middle" fill="#6b675f" font-size="11" data-zh>用户消息入队</text>
-        <text x="80"  y="92" text-anchor="middle" fill="#6b675f" font-size="11" data-en style="display:none">user message</text>
+        <rect x="16"  y="44" width="112" height="48" rx="10" fill="#eef3ee" stroke="#3e6b4f"/>
+        <text x="72"  y="64" text-anchor="middle">user message</text>
+        <text x="72"  y="81" text-anchor="middle" fill="#6b675f" font-size="11" data-zh>用户消息</text>
+        <text x="72"  y="81" text-anchor="middle" fill="#6b675f" font-size="11" data-en style="display:none">user message</text>
 
-        <rect x="192" y="56" width="150" height="46" rx="10" fill="#eef3ee" stroke="#3e6b4f"/>
-        <text x="267" y="76" text-anchor="middle">recall off-turn</text>
-        <text x="267" y="92" text-anchor="middle" fill="#6b675f" font-size="11">BM25 / RRF</text>
+        <rect x="158" y="44" width="168" height="48" rx="10" fill="#eef3ee" stroke="#3e6b4f"/>
+        <text x="242" y="64" text-anchor="middle">agent/pre-step</text>
+        <text x="242" y="81" text-anchor="middle" fill="#6b675f" font-size="11" data-zh>召回 + 体检 + 敏感闸</text>
+        <text x="242" y="81" text-anchor="middle" fill="#6b675f" font-size="11" data-en style="display:none">recall + status + gate</text>
 
-        <rect x="366" y="56" width="128" height="46" rx="10" fill="#f4f1ea" stroke="#a08c5a"/>
-        <text x="430" y="76" text-anchor="middle">assemble</text>
-        <text x="430" y="92" text-anchor="middle" fill="#6b675f" font-size="11" data-zh>section 读缓存</text>
-        <text x="430" y="92" text-anchor="middle" fill="#6b675f" font-size="11" data-en style="display:none">section reads cache</text>
+        <rect x="356" y="44" width="150" height="48" rx="10" fill="#eef3ee" stroke="#3e6b4f"/>
+        <text x="431" y="64" text-anchor="middle">source=memlite</text>
+        <text x="431" y="81" text-anchor="middle" fill="#6b675f" font-size="11" data-zh>标题 + id8 追加</text>
+        <text x="431" y="81" text-anchor="middle" fill="#6b675f" font-size="11" data-en style="display:none">title + id8 appended</text>
 
-        <rect x="546" y="56" width="90" height="46" rx="10" fill="#f4f1ea" stroke="#a08c5a"/>
-        <text x="591" y="84" text-anchor="middle">LLM step</text>
+        <rect x="536" y="44" width="100" height="48" rx="10" fill="#f4f1ea" stroke="#a08c5a"/>
+        <text x="586" y="64" text-anchor="middle">assemble</text>
+        <text x="586" y="81" text-anchor="middle" fill="#6b675f" font-size="11">rules section</text>
 
-        <rect x="272" y="140" width="180" height="36" rx="18" fill="#ffffff" stroke="#e5e0d6"/>
-        <text x="362" y="163" text-anchor="middle" fill="#3e6b4f" font-size="12" data-zh>turn-stopping 保底刷新</text>
-        <text x="362" y="163" text-anchor="middle" fill="#3e6b4f" font-size="12" data-en style="display:none">turn-stopping refresh</text>
+        <rect x="666" y="44" width="78" height="48" rx="10" fill="#f4f1ea" stroke="#a08c5a"/>
+        <text x="705" y="73" text-anchor="middle">LLM step</text>
 
-        <line x1="144" y1="79" x2="186" y2="79" stroke="#6b675f" stroke-width="1.4" marker-end="url(#arr)"/>
-        <line x1="342" y1="79" x2="360" y2="79" stroke="#6b675f" stroke-width="1.4" marker-end="url(#arr)"/>
-        <line x1="494" y1="79" x2="540" y2="79" stroke="#6b675f" stroke-width="1.4" marker-end="url(#arr)"/>
-        <path d="M430 102 C 430 138, 400 156, 368 158" stroke="#3e6b4f" stroke-width="1.2" stroke-dasharray="4 4" fill="none"/>
-        <path d="M300 156 C 250 150, 230 120, 250 104" stroke="#3e6b4f" stroke-width="1.2" stroke-dasharray="4 4" fill="none" marker-end="url(#arr)"/>
+        <rect x="158" y="148" width="168" height="34" rx="17" fill="#ffffff" stroke="#e5e0d6"/>
+        <text x="242" y="170" text-anchor="middle" fill="#3e6b4f" font-size="12" data-zh>turn-stopping 收尾自查</text>
+        <text x="242" y="170" text-anchor="middle" fill="#3e6b4f" font-size="12" data-en style="display:none">turn-stopping wrap-up</text>
+
+        <rect x="400" y="148" width="272" height="34" rx="17" fill="#ffffff" stroke="#e5e0d6"/>
+        <text x="536" y="170" text-anchor="middle" fill="#3e6b4f" font-size="12">tools: recall / show / remember / update / attach</text>
+
+        <line x1="128" y1="68" x2="152" y2="68" stroke="#6b675f" stroke-width="1.4" marker-end="url(#arr)"/>
+        <line x1="326" y1="68" x2="350" y2="68" stroke="#6b675f" stroke-width="1.4" marker-end="url(#arr)"/>
+        <line x1="506" y1="68" x2="530" y2="68" stroke="#6b675f" stroke-width="1.4" marker-end="url(#arr)"/>
+        <line x1="636" y1="68" x2="660" y2="68" stroke="#6b675f" stroke-width="1.4" marker-end="url(#arr)"/>
+        <path d="M242 92 L242 148" stroke="#3e6b4f" stroke-width="1.2" stroke-dasharray="4 4" fill="none" marker-end="url(#arr)"/>
+        <path d="M705 92 C 705 128, 692 146, 674 160" stroke="#3e6b4f" stroke-width="1.2" stroke-dasharray="4 4" fill="none" marker-end="url(#arr)"/>
       </g>
     </svg>
     <p class="cap">
-      <span data-zh>section 的 text 是同步函数，只读内存缓存——recall 永不在轮上等待；默认 BM25 约 1ms，通常赶在本步 assemble 之前就绪。</span>
-      <span data-en style="display:none">The section's text is a synchronous function reading an in-memory cache — recall never waits on the turn; default BM25 (~1ms) is usually ready before the step assembles.</span>
+      <span data-zh>召回发生在 <code>agent/pre-step</code>，用预算/阈值裁到标题级后作为 user 消息追加，不占 tool 调用；<code>memlite:rules</code>（order 850）恒定注入 9 条行为契约。turn-stopping 每轮最多一次收尾提醒，不查库。</span>
+      <span data-en style="display:none">Recall runs in <code>agent/pre-step</code>, trimmed by budget/threshold to title level and appended as a user message — no tool call. <code>memlite:rules</code> (order 850) always injects the 9 behavior rules. turn-stopping nudges at most once per turn and never reads the store.</span>
     </p>
   </div>
 </div>
@@ -215,18 +225,23 @@
 <div class="wrap">
   <section>
     <h2><span class="no">01</span><span data-zh>它做什么</span><span class="no" data-en style="display:none">01</span><span data-en style="display:none">What it does</span></h2>
-    <p class="lead" data-zh>四个机制，全部落在你自己的机器上。</p>
-    <p class="lead" data-en style="display:none">Four mechanisms, all on your own machine.</p>
+    <p class="lead" data-zh>六个机制，全部落在你自己的机器上。</p>
+    <p class="lead" data-en style="display:none">Six mechanisms, all on your own machine.</p>
     <div class="grid">
       <div class="card"><div class="icon">🧠</div>
-        <h3 data-zh>自动注入</h3><h3 data-en style="display:none">Auto injection</h3>
-        <p data-zh>每轮把与对话相关的记忆拼进 system prompt（可调条数与字符上限）。记忆从对话第二轮起出现，永不阻塞当前轮。</p>
-        <p data-en style="display:none">Relevant memories are assembled into the system prompt every turn (tunable count & char cap). Memory appears from the second turn onward and never blocks.</p>
+        <h3 data-zh>pre-step 召回</h3><h3 data-en style="display:none">pre-step recall</h3>
+        <p data-zh>每轮在 <code>agent/pre-step</code> 同步召回，按条数/阈值/字符预算裁到标题级，以 <code>source=memlite</code> 的 user 消息追加——零 tool 调用。正文按需用 <code>memlite_show</code> 展开。</p>
+        <p data-en style="display:none">Synchronous recall in <code>agent/pre-step</code>: trimmed by count/threshold/char budget to title level and appended as a <code>source=memlite</code> user message — zero tool calls. Expand bodies on demand with <code>memlite_show</code>.</p>
       </div>
       <div class="card"><div class="icon">🌳</div>
         <h3 data-zh>因果树</h3><h3 data-en style="display:none">Causal tree</h3>
         <p data-zh>记忆是父子链：父=因、子=果。命中即见前因后果，防环 64 层封顶；/memlite-chain 一把取回整条链。</p>
         <p data-en style="display:none">Memories form parent-child chains: parent = cause, child = effect. Hits show their causes and effects; cycles capped at 64 levels; /memlite-chain retrieves a whole chain.</p>
+      </div>
+      <div class="card"><div class="icon">⚙️</div>
+        <h3 data-zh>GUI 配置页</h3><h3 data-en style="display:none">GUI settings</h3>
+        <p data-zh>侧栏「插件」→ Memlite 记忆行 → <b>配置</b>。插件自带浏览器半区，表单暂存草稿、只读生效值，保存才写入 profile 的 <code>cordis.patch.yml</code>；召回参数即时生效，目录/嵌入/同步变化自动重建引擎。</p>
+        <p data-en style="display:none">Sidebar → Plugins → the Memlite Memory row → <b>Configure</b>. The plugin ships its own browser half: the form stages a draft, shows effective values, and only Save writes the profile's <code>cordis.patch.yml</code>. Recall parameters apply live; directory/embedding/sync changes rebuild the engine.</p>
       </div>
       <div class="card"><div class="icon">🛡️</div>
         <h3 data-zh>敏感闸</h3><h3 data-en style="display:none">Sensitive gate</h3>
@@ -262,8 +277,8 @@
 
   <section id="commands">
     <h2><span class="no">03</span><span data-zh>命令</span><span class="no" data-en style="display:none">03</span><span data-en style="display:none">Commands</span></h2>
-    <p class="lead" data-zh>DSH 命令名为单 token——13 个扁平 dash 名，全部返回 CommandResult。</p>
-    <p class="lead" data-en style="display:none">DSH command names are single tokens — 13 flat dash names, all returning CommandResult.</p>
+    <p class="lead" data-zh>DSH 命令名为单 token——13 个核心 dash 名 + 3 个 Obsidian 命令，全部返回 CommandResult。</p>
+    <p class="lead" data-en style="display:none">DSH command names are single tokens — 13 core dash names plus 3 Obsidian commands, all returning CommandResult.</p>
     <table>
       <tr><th data-zh>命令</th><th data-en style="display:none">Command</th><th data-zh>作用</th><th data-en style="display:none">Purpose</th></tr>
       <tr><td class="cmd"><code>/memlite</code></td><td data-zh>概览与快速上手</td><td data-en style="display:none">Overview & quick start</td></tr>
@@ -287,30 +302,45 @@
 
   <section id="config">
     <h2><span class="no">04</span><span data-zh>配置</span><span class="no" data-en style="display:none">04</span><span data-en style="display:none">Configuration</span></h2>
-    <p class="lead" data-zh>侧栏「插件」→ memlite 行 → <b>配置</b>：插件自带浏览器半区，保存才写入 profile 的 cordis.patch.yml。密钥走 credentials——永不写入配置文件或数据仓。</p>
-    <p class="lead" data-en style="display:none">Sidebar Plugins → the memlite row → <b>Configure</b>: the plugin ships its own browser half, and only Save writes to the profile's cordis.patch.yml. Keys live in credentials, never in config files or the data store.</p>
+    <p class="lead" data-zh>侧栏「插件」→ <b>Memlite 记忆</b>行 → <b>配置</b>：插件自带浏览器半区，表单暂存草稿、只读生效值，保存才写入 profile 的 <code>cordis.patch.yml</code>。密钥走 credentials——永不写入配置文件或数据仓。</p>
+    <p class="lead" data-en style="display:none">Sidebar → Plugins → the <b>Memlite Memory</b> row → <b>Configure</b>: the plugin ships its own browser half; the form stages a draft, shows effective values, and only Save writes to the profile's <code>cordis.patch.yml</code>. Keys live in credentials, never in config files or the data store.</p>
     <table>
       <tr><th data-zh>字段</th><th data-en style="display:none">Field</th><th data-zh>默认</th><th data-en style="display:none">Default</th><th data-zh>说明</th><th data-en style="display:none">Notes</th></tr>
-      <tr><td><code>dataDir</code></td><td><code>''</code></td><td data-zh>留空自动解析（MEMLITE_DATA &gt; 项目级 &gt; 用户级 &gt; ~/memlite-data）</td><td data-en style="display:none">Empty = auto-resolve</td></tr>
-      <tr><td><code>recallLimit</code></td><td><code>10</code></td><td data-zh>单次召回上限</td><td data-en style="display:none">Recall limit</td></tr>
-      <tr><td><code>autoInject</code></td><td><code>true / 5 / 2000</code></td><td data-zh>注入开关 / 条数 / 字符上限</td><td data-en style="display:none">Inject toggle / count / char cap</td></tr>
-      <tr><td><code>sync</code></td><td><code>false</code></td><td data-zh>挂载时自动 git 同步</td><td data-en style="display:none">Auto git sync on mount</td></tr>
-      <tr><td><code>embedding.provider</code></td><td><code>none</code></td><td data-zh>none / openai-compatible / host</td><td data-en style="display:none">none / openai-compatible / host</td></tr>
-      <tr><td><code>embedding.credentialRef</code></td><td><code>MEMLITE_EMBED_API_KEY</code></td><td data-zh>凭据引用名</td><td data-en style="display:none">Credential reference</td></tr>
+      <tr><td><code>enabled</code></td><td><code>true</code></td><td data-zh>总开关；关闭后立即停注入/召回/提醒，工具与命令回执拒绝</td><td data-en style="display:none">Master switch; disables rules, recall, nudges, tools and commands immediately</td></tr>
+      <tr><td><code>dataDir</code></td><td><code>''</code></td><td data-zh>留空自动解析（MEMLITE_DATA &gt; 项目级 &gt; 用户级 &gt; ~/memlite-data）；修改会重建引擎</td><td data-en style="display:none">Empty = auto-resolve (MEMLITE_DATA &gt; project &gt; user &gt; ~/memlite-data); changing it rebuilds the engine</td></tr>
+      <tr><td><code>recallLimit</code></td><td><code>5</code></td><td data-zh>单次召回上限（1–50）</td><td data-en style="display:none">Recall limit (1–50)</td></tr>
+      <tr><td><code>recallThreshold</code></td><td><code>0</code></td><td data-zh>召回分数阈值（0–1，0=不筛）</td><td data-en style="display:none">Score threshold (0–1, 0 = no filter)</td></tr>
+      <tr><td><code>budgetChars</code></td><td><code>1500</code></td><td data-zh>自动注入字符预算（200–20000）</td><td data-en style="display:none">Injection char budget (200–20000)</td></tr>
+      <tr><td><code>minPromptChars</code></td><td><code>2</code></td><td data-zh>短于该长度的提示词跳过召回</td><td data-en style="display:none">Shorter prompts skip recall</td></tr>
+      <tr><td><code>storeNudgeEvery</code></td><td><code>1</code></td><td data-zh>收尾提醒频率（每 N 轮）；0 关闭</td><td data-en style="display:none">Wrap-up nudge every N rounds; 0 disables</td></tr>
+      <tr><td><code>sync</code></td><td><code>{auto:false}</code></td><td data-zh>挂载/重建时自动 git 同步，可选 remote</td><td data-en style="display:none">Auto git sync on mount/rebuild, optional remote</td></tr>
+      <tr><td><code>embedding</code></td><td><code>none</code></td><td data-zh>provider（none / openai-compatible / host）、apiBase、model、credentialRef、timeoutMs</td><td data-en style="display:none">provider (none / openai-compatible / host), apiBase, model, credentialRef, timeoutMs</td></tr>
       <tr><td><code>sensitiveGate</code></td><td><code>true</code></td><td data-zh>写前敏感扫描</td><td data-en style="display:none">Pre-write sensitive scan</td></tr>
     </table>
     <div class="note">
+      <span data-zh>表单只投影 <b>volatile</b> 配置：根 Config 声明 <code>.volatile()</code>，保存不重挂插件——召回参数下一次调用即生效，<code>dataDir</code>/<code>embedding</code>/<code>sync</code>/<code>sensitiveGate</code> 变化由插件重建记忆引擎。密钥只存 DSH credentials（<code>credentialRef</code>），绝不写入配置文件或数据仓。</span>
+      <span data-en style="display:none">The form projects only <b>volatile</b> config: the root Config declares <code>.volatile()</code>, so saving never remounts the plugin — recall parameters take effect on the next call, while <code>dataDir</code>/<code>embedding</code>/<code>sync</code>/<code>sensitiveGate</code> changes rebuild the memory engine. Keys live only in DSH credentials (<code>credentialRef</code>), never in config files or the data store.</span>
+    </div>
+    <div class="note">
+      <span data-zh><b>展示名称</b>来自包内 <code>locale/zh.json</code> / <code>locale/en.json</code> 的 <code>meta.title</code>「Memlite 记忆」/「Memlite Memory」；缺失时回退 <code>package.json</code> 的 <code>name</code>/<code>description</code>，再回退完整包名。改展示名只需改 locale JSON 并重启该插件行。</span>
+      <span data-en style="display:none"><b>Display name</b> comes from <code>meta.title</code> in <code>locale/zh.json</code> / <code>locale/en.json</code> ("Memlite 记忆" / "Memlite Memory"); missing fields fall back to <code>package.json</code> <code>name</code>/<code>description</code>, then the full package name. Renaming only needs a locale JSON edit and a row restart.</span>
+    </div>
+    <div class="note">
       <span data-zh>嵌入三档：none（默认，纯 BM25 零外网）→ openai-compatible（独立嵌入服务，密钥走 credentials）→ host 在 DSH 0.2.x 暂不可用（宿主无 embeddings API，插件加载时告警并自动回退 BM25——明示降级，不静默）。</span>
-      <span data-en style="display:none">Three embedding tiers: none (default, pure BM25, zero network) → openai-compatible (dedicated service, key via credentials) → host is unavailable on DSH 0.2.x (host has no embeddings API; the plugin warns and falls back to BM25 — explicit, not silent).</span>
+      <span data-en style="display:none">Three embedding tiers: none (default, pure BM25, zero network) → openai-compatible (dedicated service, key via credentials) → host is unavailable on DSH 0.2.x (no embeddings API; the plugin warns and falls back to BM25 — explicit, not silent).</span>
     </div>
   </section>
 
   <section id="install">
     <h2><span class="no">05</span><span data-zh>安装与上手</span><span class="no" data-en style="display:none">05</span><span data-en style="display:none">Install & quick start</span></h2>
 <pre><span class="c"># 本地开发装载（npm 发布前）</span>
-pnpm -C dsh-memlite build
+pnpm -C dsh-memlite build     <span class="c"># 宿主 + 浏览器 bundle（dist/index.js、dist/client.js）</span>
 dsh plugin --profile &lt;profile&gt; add ./dsh-memlite
 
+<span class="c"># 发布后</span>
+dsh plugin --profile &lt;profile&gt; add @rsrsai/dsh-memlite
+
+<span class="c"># 图形配置：侧栏「插件」→ Memlite 记忆 → 配置</span>
 <span class="c"># 对话里</span>
 /memlite-remember nginx 504 排查手册 --title nginx题
 /memlite-remember 下游结论 --parent &lt;id&gt;
@@ -321,11 +351,15 @@ dsh plugin --profile &lt;profile&gt; add ./dsh-memlite
   </section>
 
   <section id="m0">
-    <h2><span class="no">06</span><span data-zh>M0 实测记</span><span class="no" data-en style="display:none">06</span><span data-en style="display:none">Field notes</span></h2>
-    <p class="lead" data-zh>0.1.0 在 dsh 0.2.2-rc.1 真机验证，四处 API 与旧文档不符——全部实测坐实并回写方案。这也是本插件与「mock 测试通过、真机失败」路线的区别。</p>
-    <p class="lead" data-en style="display:none">0.1.0 was verified on a real dsh 0.2.2-rc.1 host; four APIs differed from older docs — all confirmed on the machine and written back into the proposal.</p>
+    <h2><span class="no">06</span><span data-zh>0.3.1 实测记</span><span class="no" data-en style="display:none">06</span><span data-en style="display:none">Field notes</span></h2>
+    <p class="lead" data-zh>从 0.1.0 的 API 漂移，到 0.3.1 的 GUI 配置页与展示名——每一条都先在真机坐实，再回写代码与文档。</p>
+    <p class="lead" data-en style="display:none">From the 0.1.0 API drifts to the 0.3.1 GUI settings page and display name — every item was confirmed on a real host before being written back into code and docs.</p>
     <ul class="drift">
-      <li><b>credentials.resolve(ref)</b> <span data-zh>返回 {value, source}——不是 get(ref)。</span><span data-en style="display:none">returns {value, source} — not get(ref).</span></li>
+      <li><b data-zh>GUI 配置页</b><b data-en style="display:none">GUI settings page</b> <span data-zh>真机用 UI 自动化验证：把 recallLimit 改成 6 保存，profile 的 <code>cordis.patch.yml</code> 出现 <code>- id: memlite / config: recallLimit: 6</code>；改回 5 保存，覆盖被 unset 移除。</span><span data-en style="display:none">verified with UI automation: setting recallLimit to 6 wrote <code>- id: memlite / config: recallLimit: 6</code> into the profile's <code>cordis.patch.yml</code>; setting it back to 5 removed the override via unset.</span></li>
+      <li><b data-zh>volatile 投影</b><b data-en style="display:none">Volatile projection</b> <span data-zh>settings 只投影 <code>.volatile()</code> 字段，且同一 schema 内不允许嵌套 volatile——所以根 Config 整体 volatile，插件按次读快照。</span><span data-en style="display:none">settings projects only <code>.volatile()</code> fields and forbids nested volatile inside one schema — so the root Config is volatile and the plugin reads a snapshot per call.</span></li>
+      <li><b data-zh>展示名称</b><b data-en style="display:none">Display name</b> <span data-zh>来自 <code>locale/&lt;lang&gt;.json</code> 的 <code>meta.title</code>/<code>meta.description</code>；包有 exports 时必须导出 <code>./locale/*.json</code>，否则静默回退包名。bundle 卡片与行共用同一份 meta。</span><span data-en style="display:none">comes from <code>meta.title</code>/<code>meta.description</code> in <code>locale/&lt;lang&gt;.json</code>; when the package declares exports, <code>./locale/*.json</code> must be exported or it silently falls back to the package name. Bundle cards and rows share the same meta.</span></li>
+      <li><b data-zh>重载方式</b><b data-en style="display:none">Reloading a row</b> <span data-zh>本 profile 下 <code>set_plugin</code> 对 bundle 内行返回 overridden 且不生效；用 <code>set_bundle</code> 关/开组合包，行才会重启并重读 manifest 与客户端 bundle。</span><span data-en style="display:none">on this profile <code>set_plugin</code> reports overridden for a row inside a bundle and does nothing; toggling the bundle with <code>set_bundle</code> restarts the row and re-reads its manifest and client bundle.</span></li>
+      <li><b>credentials.resolve(ref)</b> <span data-zh>返回 {value, source}——不是 get(ref)（0.1.0 实测）。</span><span data-en style="display:none">returns {value, source} — not get(ref) (0.1.0 finding).</span></li>
       <li><b>AssembleContext</b> <span data-zh>类型面无 agent 字段，运行时实传 {agent, scope, signal}——防御性读取。</span><span data-en style="display:none">has no agent field in types, but the runtime passes {agent, scope, signal} — read defensively.</span></li>
       <li><b data-zh>无 providers 服务</b><b data-en style="display:none">No providers service</b> <span data-zh>——dsh-llm 只有 chat，无 embeddings；host 档明示回退。</span><span data-en style="display:none">— dsh-llm is chat-only; the host tier falls back explicitly.</span></li>
       <li><b>COMMAND_NAME</b> <span data-zh>单 token 正则——命令名含空格注册即拒。</span><span data-en style="display:none">is a single-token regex — spaced names are rejected at registration.</span></li>
