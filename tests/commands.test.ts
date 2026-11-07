@@ -18,12 +18,13 @@ async function hostWithPlugin(config: Record<string, unknown> = {}) {
 }
 
 describe('命令注册（单 token 名校验）', () => {
-  it('13 个命令全部注册且名符合 COMMAND_NAME', async () => {
+  it('16 个命令全部注册且名符合 COMMAND_NAME', async () => {
     const h = await hostWithPlugin()
     const expected = [
       'memlite', 'memlite-recall', 'memlite-remember', 'memlite-show', 'memlite-forget',
       'memlite-update', 'memlite-attach', 'memlite-tree', 'memlite-chain', 'memlite-sync',
       'memlite-status', 'memlite-reembed', 'memlite-bench',
+      'memlite-import', 'memlite-export', 'memlite-vault-status',
     ]
     for (const name of expected) expect(h.commands.definitions.has(name), name).toBe(true)
     expect(h.commands.definitions.size).toBe(expected.length)

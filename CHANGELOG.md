@@ -2,7 +2,7 @@
 
 ## 0.1.0 (2026-11-07)
 
-首版。M0-M4 全量实现（M5 发布动作待定；M6 autoCapture 下一阶段）。
+首版。M0-M5 全量实现（npm 发布动作待定；M7 autoCapture 下一阶段）。
 
 ### 核心机制
 
@@ -33,3 +33,13 @@
 - npm 发布 `@rsrsai/dsh-memlite@0.1.0`（依赖 `@rsrsai/memlite` 先发 npm，当前 file: 链接）
 - DSH Plugin Hub 提交（topic `dsh-plugin` + publish checklist）
 - Web UI 端到端会话验证（须配 DeepSeek API key，用户侧）
+
+### M5 Obsidian 整合（2026-11-07 追加，plan 修订新增）
+
+- 三命令：`/memlite-import <vault-path> [--project P] [--write-id] [--dry-run]` /
+  `/memlite-export <output-path> [--overwrite]` / `/memlite-vault-status <vault-path>`
+- 经 `@rsrsai/memlite-obsidian@*With` 共享实例重载复用插件常驻 Memlite（无双实例写冲突）
+- 路径守卫：空串/不存在目录即拒（memlite-obsidian fb8a0c73 事故教训）
+- dry-run 预览（wouldCreate/wouldUpdate），description 写明建议先预览
+- 配套上游修复：memlite-obsidian dry-run 目录子条误报 parent-failed 的真 bug（43 测试绿）
+- 测试 44 全绿（新增 10 例：三命令真核 + 空串守卫 + dry-run 不写库 + 三方互通幂等）

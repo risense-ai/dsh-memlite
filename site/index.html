@@ -158,7 +158,7 @@
   </p>
   <div class="badges">
     <span class="badge">v0.1.0</span>
-    <span class="badge" data-zh>13 个命令</span><span class="badge" data-en style="display:none">13 commands</span>
+    <span class="badge" data-zh>16 个命令</span><span class="badge" data-en style="display:none">16 commands</span>
     <span class="badge" data-zh>零 tool 调用</span><span class="badge" data-en style="display:none">zero tool calls</span>
     <span class="badge" data-zh>与 Rust 互通</span><span class="badge" data-en style="display:none">Rust-compatible</span>
     <span class="badge gray">dsh 0.2.2-rc.1 实测</span>
@@ -233,6 +233,11 @@
         <p data-zh>写前扫描明文口令、API 密钥、身份证、银行卡（Luhn）、手机号、JWT、PEM 私钥——命中即拒，提示改存位置指针。</p>
         <p data-en style="display:none">Pre-write scan for plaintext passwords, API keys, ID numbers, bank cards (Luhn), phone numbers, JWT, PEM keys — hits are rejected with a pointer suggestion.</p>
       </div>
+      <div class="card"><div class="icon">📝</div>
+        <h3 data-zh>Obsidian 整合</h3><h3 data-en style="display:none">Obsidian bridge</h3>
+        <p data-zh>已有 vault 一键灌成记忆库、库一键导出为 vault、双向同步态一目了然——笔记存量直接变 AI 记忆。</p>
+        <p data-en style="display:none">Turn an existing vault into AI memory in one command, export the library back to a vault, and see bidirectional sync states at a glance.</p>
+      </div>
       <div class="card"><div class="icon">🔄</div>
         <h3 data-zh>git 同步</h3><h3 data-en style="display:none">Git sync</h3>
         <p data-zh>白名单 add + pathspec commit（不卷走你已暂存的改动）+ rebase --autostash + push 后 ls-remote 双通道 sha 核验。</p>
@@ -274,6 +279,9 @@
       <tr><td class="cmd"><code>/memlite-status</code></td><td data-zh>库状态</td><td data-en style="display:none">Library status</td></tr>
       <tr><td class="cmd"><code>/memlite-reembed</code></td><td data-zh>旧记忆回填向量</td><td data-en style="display:none">Backfill embeddings</td></tr>
       <tr><td class="cmd"><code>/memlite-bench</code></td><td data-zh>命中率评测（20×20）</td><td data-en style="display:none">Hit-rate bench (20×20)</td></tr>
+      <tr><td class="cmd"><code>/memlite-import &lt;vault-path&gt; [--dry-run]</code></td><td data-zh>Obsidian vault 灌入记忆库（建议先 dry-run）</td><td data-en style="display:none">Import an Obsidian vault (dry-run first)</td></tr>
+      <tr><td class="cmd"><code>/memlite-export &lt;output-path&gt; [--overwrite]</code></td><td data-zh>记忆库导出为 vault</td><td data-en style="display:none">Export library as a vault</td></tr>
+      <tr><td class="cmd"><code>/memlite-vault-status &lt;vault-path&gt;</code></td><td data-zh>同步态查询（synced/outdated/missing）</td><td data-en style="display:none">Sync states (synced/outdated/missing)</td></tr>
     </table>
   </section>
 

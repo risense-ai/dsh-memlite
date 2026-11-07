@@ -3,6 +3,7 @@
  * 每个命令 = 调 Memlite 主类方法 → CommandResult（{kind, text}，不是 string）。
  */
 import type { Memlite } from '@rsrsai/memlite'
+import { obsidianCommandDefinitions } from './obsidian'
 import { flagBool, flagNumber, flagString, parseArgs } from '../args'
 import {
   formatChain,
@@ -161,6 +162,8 @@ export function commandDefinitions(mem: Memlite): CommandDefinition[] {
           ...(r.misses.length > 0 ? ['未进 top3 的查询：', ...r.misses.map((q) => `  - ${q}`)] : []),
         ].join('\n')
       })),
+
+    ...obsidianCommandDefinitions(mem),
   ]
 }
 

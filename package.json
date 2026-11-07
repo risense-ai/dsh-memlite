@@ -50,7 +50,8 @@
   "dependencies": {
     "@deepseek-ai/cordis": "~4.1.0",
     "@deepseek-ai/schemastery": "~3.19.0",
-    "@rsrsai/memlite": "file:../memlite-js/packages/core"
+    "@rsrsai/memlite": "file:../memlite-js/packages/core",
+    "@rsrsai/memlite-obsidian": "file:../memlite-obsidian"
   },
   "devDependencies": {
     "tsup": "^8.3.0",

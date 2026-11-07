@@ -20,9 +20,13 @@
 - 🌳 **因果树**：parent_id 父子链，命中即见前因后果（防环 64 层）
 - 🔌 **零 tool 调用**：system prompt section 每轮拼装注入——off-turn 缓存双点刷新
   （`agent/inbox/inserted` 即 recall + `turn-stopping` 保底），text 同步读缓存，永不阻塞
-- 🗂️ **13 个命令**：`/memlite` `/memlite-recall` `/memlite-remember` `/memlite-show`
+- 🗂️ **16 个命令**：`/memlite` `/memlite-recall` `/memlite-remember` `/memlite-show`
   `/memlite-forget` `/memlite-update` `/memlite-attach` `/memlite-tree` `/memlite-chain`
   `/memlite-sync` `/memlite-status` `/memlite-reembed` `/memlite-bench`
+  `/memlite-import` `/memlite-export` `/memlite-vault-status`
+- 📝 **Obsidian 整合**（M5）：已有 vault 一键灌成记忆库（`/memlite-import`，强烈建议先
+  `--dry-run` 预览）；库导出为 vault（`/memlite-export`）；双向同步态查询
+  （`/memlite-vault-status`，synced/outdated/missing）
 - 🔐 **密钥安全**：`credentials.resolve(ref)` 注入，永不入配置/数据仓/日志
 - 📦 **项目级隔离**：项目级 `.memlite/` 优先，用户级回退
 - 🔄 **git 同步**：白名单 + pathspec commit（不卷走用户暂存）+ sha 双通道核验

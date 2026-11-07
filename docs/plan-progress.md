@@ -11,8 +11,9 @@
 | M2 | 命令面 | 2 天 | ✅ 完成（13 命令 + 真核测试） |
 | M3 | 系统提示注入 | 2 天 | ✅ 完成（双点刷新 + 多 agent 隔离 + 60 轮稳定） |
 | M4 | 嵌入档接入 | 1 天 | ✅ 完成（openai-compatible + credentials.resolve；host 档当前版本不可用已明示） |
-| M5 | 文档 + 发布 | 1 天 | ✅ 文档/CI 完成；**npm 发布与 Hub 提交待定**（依赖 @rsrsai/memlite 先上 npm） |
-| M6 | 自动捕获 | 后续 | 不在 0.1.0 范围 |
+| M5 | Obsidian 整合（plan 修订新增） | 1 天 | ✅ 完成：三命令 + 空串守卫 + dry-run + *With 共享实例重载（上游 43 绿） |
+| M6 | 文档 + 发布 | 1 天 | ✅ 文档/CI 完成；**npm 发布与 Hub 提交待定**（依赖 @rsrsai/memlite 先上 npm） |
+| M7 | 自动捕获 | 后续 | 不在 0.1.0 范围 |
 
 ---
 
@@ -105,3 +106,19 @@
 - 首装到首次 recall 命中：`dsh plugin add` + `/memlite-remember` + `/memlite-recall` ≤ 2 分钟
 - 召回延迟（warm cache）：section text 同步 Map 读，<0.1ms
 - 记忆库互通：memlite-js 0.1.0 已双向互通实测（Rust 写↔JS 读）
+
+---
+
+## M5 Obsidian 整合（2026-11-07，plan 修订新增后执行）
+
+- [x] 依赖 `@rsrsai/memlite-obsidian`（file: 链接，`*With` 共享实例重载由上游新增——方案 A 落地，提交 658169a/3b1a1c2）
+- [x] `src/commands/obsidian.ts` 三命令：import（--project/--write-id/--dry-run）/ export（--overwrite）/ vault-status
+- [x] 路径守卫：空串（含 `""` 字面量）/不存在目录即拒；绝对化前置
+- [x] dry-run 预览（wouldCreate/wouldUpdate + 「去掉 --dry-run」引导），description 写明建议先预览
+- [x] 进度回调接收（DSH 命令面无流式通道，聚合进最终 ImportReport 摘要）
+- [x] **上游真 bug 修复**：memlite-obsidian dry-run 目录子条误报 parent-failed（目录条不回填 pathIds）——上游 43 绿、dsh 侧 44 绿
+- [x] tests/commands/obsidian.test.ts 10 例：注册计数 16 / 幂等导入 / dry-run 不写库 / 空串与不存在路径 / --write-id 回填 / export 覆盖守卫 / vault-status 三态迁移 / 三方互通（导入→召回→导出→再导入零变更）
+- [x] 真机装载复验：16 命令、零激活告警
+- [x] README/CHANGELOG/介绍页同步（16 命令、Obsidian 卡片）
+
+**遗留**：memlite-obsidian 上 npm 后两处 file: 依赖换 `^0.1.0`；介绍页部署的 Pages 已上线。
