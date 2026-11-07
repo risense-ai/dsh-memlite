@@ -1,12 +1,18 @@
 {
   "name": "@rsrsai/dsh-memlite",
+  "packageManager": "pnpm@9.15.0",
   "version": "0.1.0",
   "description": "DSH plugin: persistent local memory powered by @rsrsai/memlite (JSONL causal tree, git sync, data-compatible with Rust memlite).",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": ["dist", "cordis.patch.yml"],
-  "engines": { "node": ">=18" },
+  "files": [
+    "dist",
+    "cordis.patch.yml"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "build": "tsup",
     "prepack": "npm run build",
