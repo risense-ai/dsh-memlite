@@ -48,18 +48,36 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          repository: risense-ai/memlite-js
+          path: memlite-js
+      - run: ln -s "$GITHUB_WORKSPACE/memlite-js" "$GITHUB_WORKSPACE/../memlite-js"
+
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org/
+
+      - name: Build @rsrsai/memlite (file: dependency)
+        run: |
+          pnpm --dir memlite-js/packages/core install --frozen-lockfile
+          pnpm --dir memlite-js/packages/core build
+
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+
       - name: Publish @rsrsai/dsh-memlite
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           HAS_TOKEN: ${{ secrets.NPM_TOKEN != '' }}
         run: |
+          if grep -q 'file:' package.json; then
+            echo "依赖仍含 file:（@rsrsai/memlite 未上 npm）——npm 包暂不可发布，跳过"
+            exit 0
+          fi
           if [ "$HAS_TOKEN" = "true" ]; then
             npm publish --access public
           else
