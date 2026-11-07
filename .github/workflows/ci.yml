@@ -18,7 +18,13 @@ jobs:
         with:
           repository: risense-ai/memlite-js
           path: memlite-js
-      - run: ln -s "$GITHUB_WORKSPACE/memlite-js" "$GITHUB_WORKSPACE/../memlite-js"
+      - uses: actions/checkout@v4
+        with:
+          repository: risense-ai/memlite-obsidian
+          path: memlite-obsidian
+      - run: |
+          ln -s "$GITHUB_WORKSPACE/memlite-js" "$GITHUB_WORKSPACE/../memlite-js"
+          ln -s "$GITHUB_WORKSPACE/memlite-obsidian" "$GITHUB_WORKSPACE/../memlite-obsidian"
 
       - uses: pnpm/action-setup@v4
         # 版本取自 package.json packageManager 字段
@@ -53,7 +59,13 @@ jobs:
         with:
           repository: risense-ai/memlite-js
           path: memlite-js
-      - run: ln -s "$GITHUB_WORKSPACE/memlite-js" "$GITHUB_WORKSPACE/../memlite-js"
+      - uses: actions/checkout@v4
+        with:
+          repository: risense-ai/memlite-obsidian
+          path: memlite-obsidian
+      - run: |
+          ln -s "$GITHUB_WORKSPACE/memlite-js" "$GITHUB_WORKSPACE/../memlite-js"
+          ln -s "$GITHUB_WORKSPACE/memlite-obsidian" "$GITHUB_WORKSPACE/../memlite-obsidian"
 
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
