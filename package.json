@@ -1,7 +1,7 @@
 {
   "name": "@rsrsai/dsh-memlite",
   "packageManager": "pnpm@9.15.0",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "DSH plugin: persistent local memory powered by @rsrsai/memlite (respire-aligned prompt/recall/wrap-up logic; JSONL causal tree, git sync, data-compatible with Rust memlite; Web GUI settings page).",
   "type": "module",
   "main": "dist/index.js",
@@ -76,8 +76,10 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.1",
     "esbuild": "^0.25.12",
     "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "tsup": "^8.3.0",
     "typescript": "^5.7.0",
     "vitest": "^2.1.0"

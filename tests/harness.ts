@@ -97,12 +97,40 @@ export class ToolsHost extends Service {
   }
 }
 
+/** connection 服务替身：精确 Fetch 路由注册表（形状按 dsh-client-connection 的 Host 面）。 */
+export interface TestFetchRoute {
+  path: string
+  methods: string[]
+  requestBody?: 'buffered' | 'streaming'
+  fetch(request: Request): Promise<Response> | Response
+}
+
+export class ConnectionHost extends Service {
+  static provide = 'connection'
+  readonly routes = new Map<string, TestFetchRoute>()
+
+  readonly fetch = {
+    register: (route: TestFetchRoute): (() => void) => {
+      if (this.routes.has(route.path)) throw new Error(`duplicate route: ${route.path}`)
+      this.routes.set(route.path, route)
+      return () => this.routes.delete(route.path)
+    },
+  }
+
+  invoke(path: string, request: Request): Promise<Response> | Response {
+    const route = this.routes.get(path)
+    if (!route) throw new Error(`route not found: ${path}`)
+    return route.fetch(request)
+  }
+}
+
 export interface TestHost {
   ctx: Context
   commands: CommandsHost
   systemPrompt: SystemPromptHost
   credentials: CredentialsHost
   tools: ToolsHost
+  connection: ConnectionHost
   dataDir: string
   /** apply 返回的清理句柄（effect 唯一 dispose 通路）。由 withPlugin() 注入。 */
   cleanup?: () => void
@@ -125,6 +153,7 @@ export async function createTestHost(): Promise<TestHost> {
   plugin(SystemPromptHost)
   plugin(CredentialsHost)
   plugin(ToolsHost)
+  plugin(ConnectionHost)
   await new Promise((r) => setTimeout(r, 5))
   const h: TestHost = {
     ctx,
@@ -133,6 +162,7 @@ export async function createTestHost(): Promise<TestHost> {
     systemPrompt: (ctx as unknown as { systemPrompt: SystemPromptHost }).systemPrompt,
     credentials: (ctx as unknown as { credentials: CredentialsHost }).credentials,
     tools: (ctx as unknown as { tools: ToolsHost }).tools,
+    connection: (ctx as unknown as { connection: ConnectionHost }).connection,
     dataDir,
     dispose: async () => {
       h.cleanup?.()

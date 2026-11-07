@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.3.2 (2026-11-08)
+
+配置页 Obsidian 桥：在 GUI 里直接导入 / 导出 / 检查同步态。
+
+### 新能力
+
+- 配置页新增 **Obsidian 桥** 分组：vault 路径、project、writeId、dry-run、导出目录、overwrite
+- 三个精确路由（`connection.fetch`，经浏览器认证与 Host/Origin 信任栅栏）：
+  - `POST /api/memlite/obsidian/import`
+  - `POST /api/memlite/obsidian/export`
+  - `POST /api/memlite/obsidian/status`
+- 路径守卫与报告格式化与 `/memlite-import`、`/memlite-export`、`/memlite-vault-status` 命令同源；
+  支持 `~` 展开、空串/不存在目录/非法 JSON/超长请求体拒绝
+- 同一时刻只允许一个导入/导出任务（409），避免并发写库冲突
+- 配置页记住最近使用的 vault / 导出 / 项目路径（localStorage），并给出预览、导入、导出、同步检查按钮
+
+### 质量
+
+- 新增 `tests/obsidian-routes.test.ts`（注册契约、dry-run、导入→status、导出/覆盖、路径与 JSON 守卫）
+- 新增配置页 SSR 渲染测试（Obsidian 分组与操作可见）
+- 测试 75 → 81 例；客户端 bundle 仍只外部依赖 react / react/jsx-runtime
+
 ## 0.3.1 (2026-11-08)
 
 本地化展示名称：插件页卡片与 memlite 行的标题不再显示完整包名。

@@ -5,14 +5,14 @@
 
 ## 状态
 
-✅ **0.3.1 GUI 配置页 + 本地化展示名完成**（2026-11-08）：在侧栏「插件」页的 **Memlite 记忆**行打开**配置**，
-可视化编辑全部字段，保存写入 profile 的 `cordis.patch.yml`；展示名/描述由 `locale/` 的 `meta` 提供。
+✅ **0.3.2 GUI 配置页 + Obsidian 桥 + 本地化展示名**（2026-11-08）：在侧栏「插件」页的 **Memlite 记忆**行打开**配置**，
+可视化编辑全部字段并直接导入/导出 Obsidian vault；保存写入 profile 的 `cordis.patch.yml`，展示名/描述由 `locale/` 的 `meta` 提供。
 其余行为保持 0.2.0 架构（静态规则、pre-step 召回、status 体检、敏感闸、显式存储 + 读回、收尾 steer、模型工具、16 命令）。
-75 测试全绿；`pnpm build` 同时产出宿主与浏览器 bundle。
+81 测试全绿；`pnpm build` 同时产出宿主与浏览器 bundle。
 
 ## 与 respire-dsh 的差别
 
-| 面 | respire-dsh | dsh-memlite（0.3.1） |
+| 面 | respire-dsh | dsh-memlite（0.3.2） |
 |---|---|---|
 | 引擎 | `rsrs` CLI 子进程 | 进程内 `@rsrsai/memlite` |
 | 模型读写 | 模型用 shell 跑 `rsrs` | 模型调 `memlite_*` 工具 |
@@ -53,13 +53,27 @@
 
 ### GUI（推荐）
 
-侧栏**「插件」**→ 已安装插件 **@rsrsai/dsh-memlite** → 行 **memlite** → **配置**。
+侧栏**「插件」**→ 已安装插件 **Memlite 记忆** → 行 **memlite** → **配置**。
 表单暂存草稿，点**保存**才写入 profile 的 `cordis.patch.yml`；每个字段带「已覆盖」与「恢复默认」。
 
 - 召回参数（条数/阈值/预算/最短提示词/收尾频率）保存后立即生效；
 - `dataDir` / `embedding` / `sync` / `sensitiveGate` 变化会重建记忆引擎（不重挂插件）；
 - 关闭 `enabled` 立即停止规则注入、召回与提醒，工具/命令回执拒绝；重启后不再加载；
 - 该页面由插件自带的浏览器半区注册（`plugins.row.config`），不是设置页的自动渲染。
+
+### Obsidian 桥（GUI）
+
+配置页的 **Obsidian 桥** 分组可以直接：
+
+- **检查同步态**：vault 各笔记相对记忆库是 synced / outdated / missing；
+- **预览导入**：dry-run 报告将新建/更新多少条，不写库；
+- **导入**：把 vault（.md + 目录）写入记忆库；可填 project、勾选 writeId，dryRun 勾选时等同预览；
+- **导出**：把记忆库导出为 vault 目录；目标目录非空时需勾选 overwrite。
+
+路径是运行 DSH 的主机上的路径，支持 `~` 展开。三个按钮走插件自带的精确路由
+（`/api/memlite/obsidian/{import,export,status}`），由 DSH 的 `connection` 服务负责浏览器认证与
+Host/Origin 信任栅栏，仅 owner Peer 可用；Web 与桌面端共用，请求体上限 64 KiB，同一时刻只允许一个导入/导出任务。
+最近使用的路径记在浏览器 localStorage，不写入配置或数据仓。
 
 ### 展示名称
 
@@ -111,7 +125,7 @@ dsh plugin --profile <profile> add ./dsh-memlite
 ## 测试
 
 ```bash
-pnpm test   # 75 例：真 cordis 核 + 形状忠实宿主服务替身 + 配置表单/浏览器半区契约
+pnpm test   # 81 例：真 cordis 核 + 形状忠实宿主服务替身 + 配置表单/Obsidian 路由/浏览器半区契约
 ```
 
 ## 协议

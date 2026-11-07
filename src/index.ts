@@ -23,6 +23,7 @@ import { States } from './state'
 import { RULES, SKIP_PREFIX, SKILL_PREFIX, STORE_PREFIX, WRAP_UP, id8, titleOf } from './rules'
 import { renderRecallTitles } from './render'
 import { Config, readConfig, resolveConfigRef, type ConfigRef, type PluginConfig } from './schema'
+import { createObsidianHandlers, registerObsidianRoutes, type ConnectionService } from './obsidian'
 import {
   messageText,
   onEvent,
@@ -131,6 +132,14 @@ export function apply(
     const tools = (scoped as unknown as Scoped).tools
     if (!tools) return
     disposers.push(registerMemoryTools(tools, mem, enabled))
+  })
+
+  // 3b. Obsidian 配置页路由：认证、Host/Origin 栅栏与 owner Peer 由 connection 负责。
+  context.inject(['connection'], (scoped) => {
+    const connection = (scoped as unknown as Scoped).connection as ConnectionService | undefined
+    if (!connection) return
+    const handlers = createObsidianHandlers(() => runtime.mem)
+    disposers.push(...registerObsidianRoutes(connection, handlers))
   })
 
   // 4. 召回 / 显式存储：pre-step waterfall，先等下游决策，再追加消息。

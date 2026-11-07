@@ -114,6 +114,61 @@ const plainButtonStyle: CSSProperties = {
 
 const BOOLEAN_FIELDS = ['enabled', 'syncAuto', 'sensitiveGate'] as const
 
+/** 配置页的 Obsidian 路由（document-relative，与官方文件上传同一约定）。 */
+const OBSIDIAN_API = 'api/memlite/obsidian'
+const OBSIDIAN_STORAGE_PREFIX = 'memlite.obsidian.'
+
+const actionButtonStyle: CSSProperties = {
+  height: 30,
+  padding: '0 12px',
+  border: `.5px solid ${COLOR_BORDER}`,
+  borderRadius: 8,
+  background: 'transparent',
+  color: COLOR_LABEL,
+  font: 'inherit',
+  fontSize: 12,
+  cursor: 'pointer',
+}
+const actionDisabledStyle: CSSProperties = { ...actionButtonStyle, opacity: 0.5, cursor: 'default' }
+const resultStyle: CSSProperties = {
+  margin: 0,
+  padding: '10px 12px',
+  border: `.5px solid ${COLOR_BORDER}`,
+  borderRadius: 8,
+  background: 'var(--dsw-alias-bg-module-platform, #f7f5f0)',
+  color: COLOR_SECONDARY,
+  fontFamily: 'var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace)',
+  fontSize: 12,
+  lineHeight: '18px',
+  whiteSpace: 'pre-wrap',
+  overflowWrap: 'anywhere',
+}
+
+interface ObsidianDraft {
+  vaultPath: string
+  project: string
+  writeId: boolean
+  dryRun: boolean
+  exportPath: string
+  overwrite: boolean
+}
+
+function readSaved(key: string, fallback: string): string {
+  try {
+    return localStorage.getItem(OBSIDIAN_STORAGE_PREFIX + key) ?? fallback
+  } catch {
+    return fallback
+  }
+}
+
+function saveSaved(key: string, value: string): void {
+  try {
+    localStorage.setItem(OBSIDIAN_STORAGE_PREFIX + key, value)
+  } catch {
+    // localStorage 不可用时忽略（仅失去记住路径的便利）
+  }
+}
+
 /** 配置页入口：summary 视图给插件页一行描述，page 视图给完整表单。 */
 export function MemliteConfigPage(props: PageProps): ReactNode {
   if (props.view === 'summary') return props.t('summary')
@@ -164,6 +219,16 @@ function MemliteConfigForm(props: { t: PageProps['t']; form: ConfigFormLike }): 
   const [draft, setDraft] = useState<Draft>(() => normalizeDraft(state.value))
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ kind: 'ok' | 'error' | 'info'; text: string }>()
+  const [obsidian, setObsidian] = useState<ObsidianDraft>(() => ({
+    vaultPath: readSaved('vaultPath', ''),
+    project: readSaved('project', ''),
+    writeId: readSaved('writeId', '0') === '1',
+    dryRun: readSaved('dryRun', '0') === '1',
+    exportPath: readSaved('exportPath', ''),
+    overwrite: false,
+  }))
+  const [obsidianBusy, setObsidianBusy] = useState<'status' | 'preview' | 'import' | 'export'>()
+  const [obsidianResult, setObsidianResult] = useState<{ ok: boolean; text: string }>()
 
   // 宿主写入成功/被拒后 revision 变化：草稿跟随最新生效值。
   useEffect(() => {
@@ -223,6 +288,115 @@ function MemliteConfigForm(props: { t: PageProps['t']; form: ConfigFormLike }): 
     setMessage(undefined)
   }
 
+  const editObsidian = <K extends keyof ObsidianDraft>(
+    key: K,
+    value: ObsidianDraft[K],
+    persistKey?: string,
+  ): void => {
+    setObsidian((current) => ({ ...current, [key]: value }))
+    setObsidianResult(undefined)
+    if (persistKey !== undefined) saveSaved(persistKey, typeof value === 'boolean' ? (value ? '1' : '0') : String(value))
+  }
+
+  const runObsidian = async (action: 'status' | 'preview' | 'import' | 'export'): Promise<void> => {
+    if (obsidianBusy !== undefined) return
+    const isImportSide = action !== 'export'
+    if (isImportSide && obsidian.vaultPath.trim() === '') {
+      setObsidianResult({ ok: false, text: t('obsidianNeedPath') })
+      return
+    }
+    if (!isImportSide && obsidian.exportPath.trim() === '') {
+      setObsidianResult({ ok: false, text: t('obsidianNeedPath') })
+      return
+    }
+
+    const route = action === 'status' ? 'status' : action === 'export' ? 'export' : 'import'
+    const body =
+      route === 'status'
+        ? { vaultPath: obsidian.vaultPath }
+        : route === 'import'
+          ? {
+              vaultPath: obsidian.vaultPath,
+              project: obsidian.project.trim() === '' ? undefined : obsidian.project,
+              writeId: obsidian.writeId,
+              dryRun: action === 'preview' ? true : obsidian.dryRun,
+            }
+          : { outputPath: obsidian.exportPath, overwrite: obsidian.overwrite }
+
+    setObsidianBusy(action)
+    setObsidianResult(undefined)
+    try {
+      const response = await fetch(`${OBSIDIAN_API}/${route}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      let payload: { ok?: boolean; text?: string; error?: string } = {}
+      try {
+        payload = (await response.json()) as typeof payload
+      } catch {
+        payload = {}
+      }
+      if (response.ok && payload.ok !== false && typeof payload.text === 'string') {
+        setObsidianResult({ ok: true, text: payload.text })
+      } else {
+        setObsidianResult({
+          ok: false,
+          text:
+            payload.error ??
+            t('obsidianRequestFailed', { message: `HTTP ${response.status}` }),
+        })
+      }
+    } catch (error) {
+      setObsidianResult({
+        ok: false,
+        text: t('obsidianRequestFailed', {
+          message: error instanceof Error ? error.message : String(error),
+        }),
+      })
+    } finally {
+      setObsidianBusy(undefined)
+    }
+  }
+
+  const actionDisabled = obsidianBusy !== undefined
+  const obsidianButton = (
+    action: 'status' | 'preview' | 'import' | 'export',
+    label: string,
+  ): ReactNode => (
+    <button
+      type="button"
+      style={actionDisabled ? actionDisabledStyle : actionButtonStyle}
+      disabled={actionDisabled}
+      onClick={() => {
+        void runObsidian(action)
+      }}
+    >
+      {obsidianBusy === action ? t('obsidianBusy') : label}
+    </button>
+  )
+
+  const obsidianCheck = (
+    key: 'writeId' | 'dryRun' | 'overwrite',
+    label: string,
+    hint?: string,
+  ): ReactNode => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
+        <input
+          type="checkbox"
+          aria-label={label}
+          style={checkboxStyle}
+          checked={obsidian[key]}
+          onChange={(event) => editObsidian(key, event.target.checked, key)}
+        />
+        <span style={{ fontSize: 12, lineHeight: '18px', color: COLOR_LABEL }}>{label}</span>
+      </label>
+      {hint !== undefined ? <span style={{ ...hintStyle, paddingLeft: 24 }}>{hint}</span> : null}
+    </div>
+  )
+
   const numberField = (key: keyof Draft, label: string, hint: string): ReactNode => (
     <Field
       t={t}
@@ -235,6 +409,7 @@ function MemliteConfigForm(props: { t: PageProps['t']; form: ConfigFormLike }): 
       <input
         type="text"
         inputMode="decimal"
+        aria-label={label}
         style={errors[key] !== undefined ? inputErrorStyle : inputStyle}
         value={draft[key] as string}
         onChange={(event) => edit(key, event.target.value as never)}
@@ -252,6 +427,7 @@ function MemliteConfigForm(props: { t: PageProps['t']; form: ConfigFormLike }): 
     >
       <input
         type="text"
+        aria-label={label}
         style={inputStyle}
         value={draft[key] as string}
         placeholder={placeholder}
@@ -271,6 +447,7 @@ function MemliteConfigForm(props: { t: PageProps['t']; form: ConfigFormLike }): 
       <div style={checkboxRowStyle}>
         <input
           type="checkbox"
+          aria-label={label}
           style={checkboxStyle}
           checked={draft[key] as boolean}
           onChange={(event) => edit(key, event.target.checked as never)}
@@ -309,6 +486,7 @@ function MemliteConfigForm(props: { t: PageProps['t']; form: ConfigFormLike }): 
           }
         >
           <select
+            aria-label={t('provider')}
             style={selectStyle}
             value={draft.embeddingProvider}
             onChange={(event) => edit('embeddingProvider', event.target.value as Draft['embeddingProvider'])}
@@ -327,6 +505,71 @@ function MemliteConfigForm(props: { t: PageProps['t']; form: ConfigFormLike }): 
       <Group title={t('groupSync')}>
         {boolField('syncAuto', t('syncAuto'), t('syncAutoHint'))}
         {stringField('syncRemote', t('syncRemote'), t('syncRemoteHint'), 'git@github.com:org/memlite-data.git')}
+      </Group>
+
+      <Group title={t('groupObsidian')}>
+        <p style={{ margin: 0, color: COLOR_TERTIARY, fontSize: 12, lineHeight: '18px' }}>{t('obsidianIntro')}</p>
+
+        <Field t={t} label={t('vaultPath')} hint={t('vaultPathHint')}>
+          <input
+            type="text"
+            aria-label={t('vaultPath')}
+            style={inputStyle}
+            value={obsidian.vaultPath}
+            placeholder="C:\\Users\\you\\Documents\\MyVault"
+            onChange={(event) => editObsidian('vaultPath', event.target.value, 'vaultPath')}
+          />
+        </Field>
+
+        <Field t={t} label={t('obsidianProject')} hint={t('obsidianProjectHint')}>
+          <input
+            type="text"
+            aria-label={t('obsidianProject')}
+            style={inputStyle}
+            value={obsidian.project}
+            placeholder="project name"
+            onChange={(event) => editObsidian('project', event.target.value, 'project')}
+          />
+        </Field>
+
+        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+          {obsidianCheck('writeId', t('writeId'), t('writeIdHint'))}
+          {obsidianCheck('dryRun', t('dryRun'), t('dryRunHint'))}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {obsidianButton('status', t('importStatus'))}
+          {obsidianButton('preview', t('previewImport'))}
+          {obsidianButton('import', t('runImport'))}
+        </div>
+
+        <Field t={t} label={t('exportPath')} hint={t('exportPathHint')}>
+          <input
+            type="text"
+            aria-label={t('exportPath')}
+            style={inputStyle}
+            value={obsidian.exportPath}
+            placeholder="C:\\Users\\you\\Documents\\MemliteVault"
+            onChange={(event) => editObsidian('exportPath', event.target.value, 'exportPath')}
+          />
+        </Field>
+
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+          {obsidianCheck('overwrite', t('overwrite'), t('overwriteHint'))}
+          <div style={{ marginLeft: 'auto' }}>{obsidianButton('export', t('runExport'))}</div>
+        </div>
+
+        {obsidianResult !== undefined ? (
+          <pre
+            style={{
+              ...resultStyle,
+              color: obsidianResult.ok ? COLOR_SECONDARY : COLOR_ERROR,
+              borderColor: obsidianResult.ok ? COLOR_BORDER : COLOR_ERROR,
+            }}
+          >
+            {obsidianResult.text}
+          </pre>
+        ) : null}
       </Group>
 
       <Group title={t('groupSecurity')}>

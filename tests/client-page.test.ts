@@ -2,8 +2,12 @@
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { apply, inject } from '../src/client/index'
+import { MemliteConfigPage } from '../src/client/MemliteSettings'
+import { DEFAULTS } from '../src/client/form'
 
 interface Registered {
   name?: unknown
@@ -78,6 +82,35 @@ describe('client half registration', () => {
     apply(fake.ctx)
     expect(fake.injectedSlots).toEqual(['plugins.row.config'])
     expect(fake.registrations).toHaveLength(1)
+  })
+})
+
+describe('config page rendering', () => {
+  it('渲染 Obsidian 导入/导出分组与操作', () => {
+    const html = renderToStaticMarkup(
+      createElement(MemliteConfigPage, {
+        t: (key: string) => key,
+        view: 'page',
+        form: {
+          state: {
+            status: 'ready',
+            value: DEFAULTS,
+            base: DEFAULTS,
+            user: {},
+            revision: 0,
+            writable: true,
+          },
+          mutate: async () => true,
+        },
+      }),
+    )
+    expect(html).toContain('groupObsidian')
+    expect(html).toContain('vaultPath')
+    expect(html).toContain('exportPath')
+    expect(html).toContain('importStatus')
+    expect(html).toContain('previewImport')
+    expect(html).toContain('runImport')
+    expect(html).toContain('runExport')
   })
 })
 

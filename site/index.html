@@ -157,12 +157,13 @@
     <span data-en style="display:none">dsh-memlite brings memlite's causal-tree memory into DeepSeek Harness: synchronous recall in <code>agent/pre-step</code> appends title-level memories as <code>source=memlite</code> user messages — no tool calls — while a static rules section is always injected. A full GUI settings page ships in Sidebar → Plugins. Data stays as local JSONL and interoperates with Rust memlite.</span>
   </p>
   <div class="badges">
-    <span class="badge">v0.3.1</span>
+    <span class="badge">v0.3.2</span>
     <span class="badge" data-zh>GUI 配置页</span><span class="badge" data-en style="display:none">GUI settings</span>
     <span class="badge" data-zh>16 个命令</span><span class="badge" data-en style="display:none">16 commands</span>
     <span class="badge" data-zh>5 个模型工具</span><span class="badge" data-en style="display:none">5 model tools</span>
     <span class="badge" data-zh>与 Rust 互通</span><span class="badge" data-en style="display:none">Rust-compatible</span>
-    <span class="badge gray">75 测试</span>
+    <span class="badge" data-zh>Obsidian 导入/导出</span><span class="badge" data-en style="display:none">Obsidian import/export</span>
+    <span class="badge gray">81 测试</span>
     <span class="badge gray">MIT</span>
   </div>
   <div class="cta">
@@ -249,9 +250,9 @@
         <p data-en style="display:none">Pre-write scan for plaintext passwords, API keys, ID numbers, bank cards (Luhn), phone numbers, JWT, PEM keys — hits are rejected with a pointer suggestion.</p>
       </div>
       <div class="card"><div class="icon">📝</div>
-        <h3 data-zh>Obsidian 整合</h3><h3 data-en style="display:none">Obsidian bridge</h3>
-        <p data-zh>已有 vault 一键灌成记忆库、库一键导出为 vault、双向同步态一目了然——笔记存量直接变 AI 记忆。</p>
-        <p data-en style="display:none">Turn an existing vault into AI memory in one command, export the library back to a vault, and see bidirectional sync states at a glance.</p>
+        <h3 data-zh>Obsidian 桥</h3><h3 data-en style="display:none">Obsidian bridge</h3>
+        <p data-zh>配置页的 <b>Obsidian 桥</b> 可直接预览/导入 vault、把记忆库导出为 vault、检查 synced/outdated/missing；<code>/memlite-import</code>、<code>/memlite-export</code> 做同样的事。单向工具，不是双向同步。</p>
+        <p data-en style="display:none">The <b>Obsidian bridge</b> in the settings page previews/imports a vault, exports the library as a vault, and checks synced/outdated/missing states; <code>/memlite-import</code> and <code>/memlite-export</code> do the same. One-way tools, not two-way sync.</p>
       </div>
       <div class="card"><div class="icon">🔄</div>
         <h3 data-zh>git 同步</h3><h3 data-en style="display:none">Git sync</h3>
@@ -328,6 +329,10 @@
     <div class="note">
       <span data-zh>嵌入三档：none（默认，纯 BM25 零外网）→ openai-compatible（独立嵌入服务，密钥走 credentials）→ host 在 DSH 0.2.x 暂不可用（宿主无 embeddings API，插件加载时告警并自动回退 BM25——明示降级，不静默）。</span>
       <span data-en style="display:none">Three embedding tiers: none (default, pure BM25, zero network) → openai-compatible (dedicated service, key via credentials) → host is unavailable on DSH 0.2.x (no embeddings API; the plugin warns and falls back to BM25 — explicit, not silent).</span>
+    </div>
+    <div class="note">
+      <span data-zh><b>Obsidian 桥（GUI）</b>：同一配置页可直接预览/导入 vault、把记忆库导出为 vault、检查 synced/outdated/missing。路径是主机上的路径（支持 <code>~</code>）；请求走 <code>/api/memlite/obsidian/{import,export,status}</code>，由 DSH <code>connection</code> 服务完成浏览器认证与 Host/Origin 信任栅栏，仅 owner Peer 可用；同一时刻只允许一个导入/导出任务。</span>
+      <span data-en style="display:none"><b>Obsidian bridge (GUI)</b>: the same settings page previews/imports a vault, exports the library as a vault, and checks synced/outdated/missing states. Paths are on the host (with <code>~</code> expansion); requests go to <code>/api/memlite/obsidian/{import,export,status}</code>, authenticated and Host/Origin-fenced by DSH's <code>connection</code> service for the owner Peer only; one import/export task at a time.</span>
     </div>
   </section>
 
