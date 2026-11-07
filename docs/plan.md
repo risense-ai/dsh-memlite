@@ -1,22 +1,25 @@
 # dsh-memlite 实施计划
 
 > 与 [proposal.md](./proposal.md) 配套。
-> 总估算：**8 个工作日**（不含 dsh 生态调研缓冲）。
+> 总估算：**8 + 1 = 9 个工作日**（不含 dsh 生态调研缓冲）。
 
 ---
 
 ## 里程碑总览
 
-| 阶段 | 范围 | 估算 | 产出 |
-|---|---|---|---|
-| M0 | 技术验证 spike | 1 天 | DSH API 实测，确认 host provider / credentials / systemPrompt 可用性 |
-| M1 | 插件骨架 | 1 天 | package.json + apply + 最小命令注册 + 本地 link 装载 |
-| M2 | 命令面 | 2 天 | recall/remember/show/forget/update/attach/tree/chain/sync/status 全命令 |
-| M3 | 系统提示注入 | 2 天 | MemliteCache + section 注册 + off-turn 刷新 |
-| M4 | 嵌入档接入 | 1 天 | host + openai-compatible 装配，credentials 集成 |
-| M5 | 文档 + 发布 | 1 天 | README + CHANGELOG + npm 发布 + Hub 提交 |
+| 阶段 | 范围 | 估算 | 状态 | 产出 |
+|---|---|---|---|---|
+| M0 | 技术验证 spike | 1 天 | ✅ 已完成 | DSH API 实测，确认 host provider / credentials / systemPrompt 可用性 |
+| M1 | 插件骨架 | 1 天 | ✅ 已完成 | package.json + apply + 最小命令注册 + 本地 link 装载 |
+| M2 | 命令面 | 2 天 | ✅ 已完成 | recall/remember/show/forget/update/attach/tree/chain/sync/status 全命令 |
+| M3 | 系统提示注入 | 2 天 | ✅ 已完成 | MemliteCache + section 注册 + off-turn 刷新 |
+| M4 | 嵌入档接入 | 1 天 | ✅ 已完成 | host + openai-compatible 装配，credentials 集成 |
+| **M5** | **Obsidian 整合** | **1 天** | **📌 本次新增** | `/memlite-import` `/memlite-export` `/memlite-vault-status` 三命令 |
+| M6 | 文档 + 发布 | 1 天 | 待启动 | README + CHANGELOG + npm 发布 + Hub 提交 |
 
-M6（自动捕获 autoCapture）放到下一阶段，**不在 0.1.0 范围**。
+M7（自动捕获 autoCapture）放到下一阶段，**不在 0.1.0 范围**。
+
+**说明**：原 M5（文档+发布）顺延为 M6。Obsidian 整合作为 M5 提前到发布前——让用户开箱即可把已有 vault 转成本插件的记忆库，**这是拉新入口**。
 
 ---
 
@@ -174,7 +177,74 @@ M6（自动捕获 autoCapture）放到下一阶段，**不在 0.1.0 范围**。
 
 ---
 
-## M5 文档 + 发布（1 天）
+## M5 Obsidian 整合（1 天）
+
+**目标**：让用户在 DSH 会话里直接用 `/memlite-import` 把 Obsidian vault 灌进 memlite，用 `/memlite-export` 把 memlite 库导成 vault。**这是拉新入口**——已有大量 Obsidian 笔记的用户一键转成 AI 记忆。
+
+### 依赖
+
+新增对 `@rsrsai/memlite-obsidian@^0.1.0` 的依赖（已实现完成，37 测试绿，互通幂等验证通过）。
+
+```json
+{
+  "dependencies": {
+    "@rsrsai/memlite": "^0.1.0",
+    "@rsrsai/memlite-obsidian": "^0.1.0"
+  }
+}
+```
+
+### 命令实现
+
+- [ ] `src/commands/obsidian.ts`：三个新命令
+  - [ ] `/memlite-import <vault-path> [--project P] [--write-id] [--dry-run]`
+  - [ ] `/memlite-export <output-path> [--overwrite]`
+  - [ ] `/memlite-vault-status <vault-path>`——列出 synced/outdated/missing 行
+- [ ] `src/commands/index.ts`：注册三个新 def
+
+### 参数解析与守卫
+
+**关键陷阱**（核自 memlite-obsidian `fb8a0c73` 已修事故）：
+
+- ❌ **绝不接受空串 path**：`memlite-import ""` 会落 cwd 并污染 114 文件
+- ❌ **绝不接受空串 dataDir**：会误入 `~/memlite-data` 写 312 条
+- ✅ 入参前用 `requireRest` 校验非空 + 路径绝对化 + 存在性检查
+- ✅ `--dry-run` 默认强烈建议先跑一遍（在命令 description 里写明）
+
+### 进度报告
+
+memlite-obsidian 提供 `onProgress(done, total, path)` 回调。命令处理器把它转成 DSH 的进度显示：
+
+- [ ] 大 vault（>100 条）显示进度
+- [ ] 完成后输出 ImportReport/ExportReport 摘要（created/updated/unchanged/skipped/warnings）
+
+### 与 Memlite 实例的协作
+
+memlite-obsidian 的 `importVault`/`exportVault` 内部会 open/close 自己的 Memlite。但 dsh-memlite 已有一个常驻实例——两者写同一 dataDir 会**冲突**。
+
+**两种方案**：
+
+| 方案 | 做法 | 代价 |
+|---|---|---|
+| A. 共享实例 | 把 dsh-memlite 的 `mem` 传给 obsidian 函数（需 obsidian 仓加接受 Memlite 实例的重载） | 需 obsidian 仓改 API |
+| B. 隔离调用 | obsidian 函数自开自关；调用前 dsh-memlite 暂停 recall cache 刷新，调用后触发刷新 | 不改 obsidian 仓，但需注意缓存一致性 |
+
+**推荐方案 A**——一次性在 obsidian 仓加 `importVaultWith(mem, vaultPath, opts)` / `exportVaultWith(mem, outputPath, opts)` 重载，让 dsh-memlite 复用自己的 Memlite 实例。
+
+- [ ] 给 memlite-obsidian 提 PR：加 `*With` 重载
+- [ ] dsh-memlite 侧调用 `*With` 版本
+
+### 测试
+
+- [ ] `tests/commands/obsidian.test.ts`：三个命令的真实注册器测试
+- [ ] 边界：空串 path、不存在路径、缺权限路径
+- [ ] dry-run 不写库
+- [ ] 大 vault 进度回调被调用
+- [ ] 与 memlite-js / memlite-obsidian 三方互通：导入→召回→导出→幂等
+
+---
+
+## M6 文档 + 发布（1 天）
 
 ### 文档
 
@@ -205,7 +275,7 @@ M6（自动捕获 autoCapture）放到下一阶段，**不在 0.1.0 范围**。
 
 ---
 
-## M6 自动捕获（后续阶段，不在 0.1.0）
+## M7 自动捕获（后续阶段，不在 0.1.0）
 
 - autoCapture 默认关闭
 - 监听 turn-stopping，按启发式（决策/错误修复/重要结论）自动 remember
@@ -218,12 +288,13 @@ M6（自动捕获 autoCapture）放到下一阶段，**不在 0.1.0 范围**。
 
 ### 0.1.0 发布前必须满足
 
-- [ ] M0 spike 全部 API 实测通过
-- [ ] M1 本地装载 + 最小命令工作
-- [ ] M2 全命令实现 + 真实注册器测试绿
-- [ ] M3 系统提示注入工作 + 60 轮会话无累积
-- [ ] M4 嵌入档三档切换正常
-- [ ] M5 npm 发布 + Hub 提交
+- [x] M0 spike 全部 API 实测通过
+- [x] M1 本地装载 + 最小命令工作
+- [x] M2 全命令实现 + 真实注册器测试绿
+- [x] M3 系统提示注入工作 + 60 轮会话无累积
+- [x] M4 嵌入档三档切换正常
+- [ ] M5 Obsidian 整合：三命令工作 + 空串守卫 + dry-run 提示
+- [ ] M6 npm 发布 + Hub 提交
 - [ ] 与 Rust memlite 库互通（插件能读 Rust 写的库）
 - [ ] 多 agent 不串味
 - [ ] 密钥全程不出现在 cordis.yml / 数据仓 / 日志
@@ -231,6 +302,7 @@ M6（自动捕获 autoCapture）放到下一阶段，**不在 0.1.0 范围**。
 ### 关键度量
 
 - **首装到首次 recall 命中**：≤ 5 分钟（含 read README）
+- **首装到首次 vault 导入完成**（1000 条）：≤ 5 分钟（含 dry-run + 实导入）
 - **召回延迟**（warm cache）：< 1ms（系统提示注入零延迟）
 - **记忆库互通**：JS 写入的库，Rust CLI 读出并命中
 

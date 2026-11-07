@@ -196,7 +196,7 @@ export function apply(ctx: Context, config: Config) {
 
 ---
 
-## 五、命令面（M0 修订：扁平单 token 名）
+## 五、命令面（M0 修订：扁平单 token 名；M5 增 Obsidian 三命令）
 
 ```
 /memlite                    # 概览：库路径/条数/嵌入档/同步状态 + 快速上手
@@ -212,9 +212,12 @@ export function apply(ctx: Context, config: Config) {
 /memlite-status
 /memlite-reembed            # 嵌入档开启后回填旧记忆向量
 /memlite-bench              # 命中率评测
+/memlite-import <vault-path> [--project P] [--write-id] [--dry-run]    # M5 新增
+/memlite-export <output-path> [--overwrite]                            # M5 新增
+/memlite-vault-status <vault-path>                                     # M5 新增
 ```
 
-命令实现 = 调用 `@rsrsai/memlite` 对应方法，返回 `CommandResult`：
+命令实现 = 调用 `@rsrsai/memlite` 对应方法（Obsidian 三命令调 `@rsrsai/memlite-obsidian`），返回 `CommandResult`：
 
 ```ts
 ctx.commands.register({
@@ -230,9 +233,10 @@ ctx.commands.register({
 })
 ```
 
-**关键陷阱**（plur-ai 实战）：
+**关键陷阱**（plur-ai 实战 + memlite-obsidian fb8a0c73 事故）：
 - 字段是 `handler` 不是 `execute`——写错会**静默不注册**
 - 返回 `CommandResult` 联合类型（`kind: 'success' | 'error' | ...`），不是 string
+- **路径参数绝不接受空串**：`memlite-import ""` 会落 cwd 污染文件；`--data-dir ""` 会误入用户级库。入参前必校验非空 + 绝对化 + 存在性
 
 ---
 
@@ -353,17 +357,23 @@ ctx.skills.register({
 
 ---
 
-## 十一、与 memlite-js 的依赖关系
+## 十一、与 memlite-js / memlite-obsidian 的依赖关系（M5 修订）
 
 ```
-risense/memlite-js         →  @rsrsai/memlite@0.1.0    （已发布/待发布）
-       ↓ depends on
-risense/dsh-memlite        →  @rsrsai/dsh-memlite@0.1.0 （本仓）
+risense/memlite-js         →  @rsrsai/memlite@0.1.0           （基础库）
+       ↑                            ↑
+       │ depends on                 │ depends on
+       │                            │
+risense/memlite-obsidian   →  @rsrsai/memlite-obsidian@0.1.0   （Obsidian 桥）
+       ↑
+       │ depends on (M5 新增)
+       │
+risense/dsh-memlite        →  @rsrsai/dsh-memlite@0.1.0        （本仓）
        ↓ installed into
 dsh profile                →  cordis.yml 引用
 ```
 
-**关键前提**：`@rsrsai/memlite` 需先发布到 npm，或在 monorepo 内通过 workspace 链接。当前 memlite-js 仓 0.1.0 代码已完成（commit `0393968`），但 npm 发布状态需确认。
+**关键前提**：`@rsrsai/memlite` 与 `@rsrsai/memlite-obsidian` 需先发布到 npm，或在 monorepo 内通过 workspace 链接。当前两仓 0.1.0 代码均已完成，但 npm 发布状态需确认。
 
 ---
 
