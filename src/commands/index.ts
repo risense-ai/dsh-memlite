@@ -167,9 +167,20 @@ export function commandDefinitions(mem: Memlite): CommandDefinition[] {
   ]
 }
 
-/** 把全部命令注册进宿主 commands 服务。 */
-export function registerCommands(commands: { register(d: CommandDefinition): () => void }, mem: Memlite): () => void {
-  const disposers = commandDefinitions(mem).map((d) => commands.register(d))
+/** 把全部命令注册进宿主 commands 服务（关闭时统一回执拒绝）。 */
+export function registerCommands(
+  commands: { register(d: CommandDefinition): () => void },
+  mem: Memlite,
+  isEnabled: () => boolean = () => true,
+): () => void {
+  const disposers = commandDefinitions(mem).map((d) =>
+    commands.register({
+      name: d.name,
+      description: d.description,
+      handler: (invocation) =>
+        isEnabled() ? d.handler(invocation) : fail('memlite 已禁用：在插件设置里开启总开关后再用。'),
+    }),
+  )
   return () => {
     for (const d of disposers) d()
   }

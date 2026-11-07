@@ -17,16 +17,26 @@ afterEach(async () => {
 describe('schema 默认值', () => {
   it('resolveConfig 补全全部默认（dataDir 空=自动解析）', () => {
     const c = resolveConfig(undefined)
+    expect(c.enabled).toBe(true)
     expect(c.dataDir).toBe('')
-    expect(c.recallLimit).toBe(10)
-    expect(c.autoInject).toEqual({ enabled: true, maxMemories: 5, maxChars: 2000 })
-    expect(c.autoCapture).toEqual({ enabled: false })
+    expect(c.recallLimit).toBe(5)
+    expect(c.recallThreshold).toBe(0)
+    expect(c.budgetChars).toBe(1500)
+    expect(c.minPromptChars).toBe(2)
+    expect(c.storeNudgeEvery).toBe(1)
     expect(c.sync).toEqual({ auto: false })
     expect(c.embedding.provider).toBe('none')
     expect(c.embedding.model).toBe('BAAI/bge-m3')
     expect(c.embedding.credentialRef).toBe('MEMLITE_EMBED_API_KEY')
     expect(c.embedding.timeoutMs).toBe(30000)
     expect(c.sensitiveGate).toBe(true)
+  })
+
+  it('越界配置在 apply 前就拒', async () => {
+    const h = await createTestHost()
+    hosts.push(h)
+    expect(() => apply(h.ctx as never, { dataDir: h.dataDir, recallLimit: 0 })).toThrow(/recallLimit/)
+    expect(() => apply(h.ctx as never, { dataDir: h.dataDir, recallThreshold: 2 })).toThrow(/recallThreshold/)
   })
 })
 

@@ -1,5 +1,6 @@
 # dsh-memlite 插件装载行：@rsrsai/dsh-memlite 的 apply 在 profile 挂载时执行。
-# 配置经 DSH 设置页或 profile cordis.patch.yml 的同名 id 行覆盖（- id: memlite, config: {...}）。
+# 图形配置：侧栏「插件」→ 本行 → 配置（浏览器半区注册 plugins.row.config，键 @rsrsai/dsh-memlite#memlite）。
+# 也可直接写 profile cordis.patch.yml 的同 id 覆盖行（- id: memlite, config: {...}）。
 - insert:
     - id: memlite
       name: '@rsrsai/dsh-memlite'

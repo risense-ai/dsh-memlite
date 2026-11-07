@@ -122,3 +122,20 @@
 - [x] README/CHANGELOG/介绍页同步（16 命令、Obsidian 卡片）
 
 **遗留**：memlite-obsidian 上 npm 后两处 file: 依赖换 `^0.1.0`；介绍页部署的 Pages 已上线。
+
+---
+
+## M7 架构对齐 respire-dsh（2026-11-07，0.2.0）
+
+- [x] 静态规则 section `memlite:rules`（order 850，9 条行为契约）
+- [x] `agent/pre-step` 同步召回（人类消息过滤 + message.id 去重 + 标题档 + threshold/budget）
+- [x] 每 agent 一次 status 体检（空库/条数少/坏行/引擎异常回执）
+- [x] 敏感闸前置（`mem.scanOrReject`，与写库同一套规则）
+- [x] 显式「记：/存：/remember:」存储 + `mem.show` 读回校验 + 模型可见回执
+- [x] `agent/turn-stopping` 一次性收尾 steer（ready/hadUser/stored/reminded/nudge 闸）
+- [x] 每 agent / 每 turn 状态机（WeakMap：checked/ready/rounds/turn）
+- [x] 模型工具 `memlite_recall/show/remember/update/attach`（`ctx.tools`，无宿主包运行时依赖）
+- [x] 删除 off-turn 缓存与 `memlite:context`；删除 `cache.ts` / `prompt.ts`
+- [x] 配置改为 `enabled/recallLimit/recallThreshold/budgetChars/minPromptChars/storeNudgeEvery`
+- [x] 测试 44 → 57 全绿；`pnpm build`（ESM + d.ts）通过
+- [ ] 真机重载回归（desktop profile：显式存储回执 + 召回注入 + 收尾 steer）

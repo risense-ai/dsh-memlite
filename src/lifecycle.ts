@@ -10,6 +10,30 @@ export interface Assembled {
   readonly dispose: () => void
 }
 
+export type CredentialResolver = MemliteDeps['credentialResolver']
+
+/**
+ * 凭据适配（M0 漂移一）：宿主是 `credentials.resolve(ref) → {value, source} | undefined`，
+ * 插件侧拉平为 memlite 的 `(ref) → value | undefined`。
+ * credentials 服务经 ctx.inject 捕获——apply 时刻服务未就绪也不炸，解析在调用期。
+ * 只创建一次，供配置热更新时重建引擎复用。
+ */
+export function createCredentialResolver(ctx: PluginContext): CredentialResolver {
+  let credentials: CredentialsService | undefined
+  try {
+    ctx.inject(['credentials'], (scoped) => {
+      credentials = (scoped as unknown as { credentials?: CredentialsService }).credentials
+    })
+  } catch {
+    // 无 credentials 服务（如裸 cordis 测试核）——嵌入档 openai-compatible 将在解析期报错
+  }
+  return async (ref) => {
+    if (!credentials) return undefined
+    const resolved = await credentials.resolve(ref).catch(() => undefined)
+    return resolved?.value
+  }
+}
+
 /** 插件配置 → MemliteConfig 逐字段映射（docs/integration.md §2.2）。 */
 export function toMemliteConfig(config: PluginConfig): MemliteConfig {
   return {
@@ -28,24 +52,13 @@ export function toMemliteConfig(config: PluginConfig): MemliteConfig {
 }
 
 /**
- * 构造 Memlite 实例。凭据适配（M0 漂移一）：宿主是 `credentials.resolve(ref) →
- * {value, source} | undefined`，插件侧拉平为 memlite 的 `(ref) → value | undefined`。
- * credentials 服务经 ctx.inject 捕获——apply 时刻服务未就绪也不炸，解析在调用期。
+ * 构造 Memlite 实例。credentialResolver 可复用（配置热更新重建时避免重复 ctx.inject）。
  */
-export function assembleMemlite(ctx: PluginContext, config: PluginConfig): Assembled {
-  let credentials: CredentialsService | undefined
-  try {
-    ctx.inject(['credentials'], (scoped) => {
-      credentials = (scoped as unknown as { credentials?: CredentialsService }).credentials
-    })
-  } catch {
-    // 无 credentials 服务（如裸 cordis 测试核）——嵌入档 openai-compatible 将在解析期报错
-  }
-  const credentialResolver: MemliteDeps['credentialResolver'] = async (ref) => {
-    if (!credentials) return undefined
-    const resolved = await credentials.resolve(ref).catch(() => undefined)
-    return resolved?.value
-  }
+export function assembleMemlite(
+  ctx: PluginContext,
+  config: PluginConfig,
+  credentialResolver: CredentialResolver = createCredentialResolver(ctx),
+): Assembled {
   const logger = ctx.logger ?? { warn: () => {}, info: () => {}, error: () => {} }
   // 宿主 Context 自带 logger；此处兜底供裸核测试
 

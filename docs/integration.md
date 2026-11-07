@@ -151,7 +151,41 @@ export const inject = ['credentials', 'commands', 'systemPrompt', 'providers'] a
 
 ---
 
-## 四、版本对齐策略
+## 四、宿主接口（0.2.0 新增：消息与工具）
+
+插件不引入 `@deepseek-ai/dsh-llm` / `@deepseek-ai/dsh-tools` 运行时依赖，
+按宿主公开形状手写两个结构子集：
+
+### 4.1 注入消息（`src/messages.ts`）
+
+```ts
+{
+  id: string,            // randomUUID；宿主 brandString 运行时即原字符串
+  role: 'user',
+  content: [{ type: 'text', text: string }],
+  source: { kind: 'memlite' },   // pre-step 只认 kind==='user'，自己的注入不会二次召回
+}
+```
+
+深冻结后追加到 `agent/pre-step` 决策的 `messages`；与 `createUserMessage` 同形。
+
+### 4.2 模型工具（`src/tools.ts`）
+
+```ts
+{
+  name, description,
+  parameters,            // 宿主支持的 JSON Schema 子集（object/string/integer/array/enum）
+  output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
+  execute(args, exec): string,
+}
+```
+
+经 `ctx.inject(['tools'])` 的 `tools.register()` 注册；五个工具
+`memlite_recall/show/remember/update/attach` 直接调用常驻 `Memlite` 实例。
+
+---
+
+## 五、版本对齐策略
 
 | memlite-js | memlite-obsidian | dsh-memlite | 策略 |
 |---|---|---|---|
@@ -167,7 +201,7 @@ export const inject = ['credentials', 'commands', 'systemPrompt', 'providers'] a
 
 ---
 
-## 五、测试契约
+## 六、测试契约
 
 ### 5.1 集成测试必须包含
 
@@ -189,7 +223,7 @@ export const inject = ['credentials', 'commands', 'systemPrompt', 'providers'] a
 
 ---
 
-## 六、变更流程
+## 七、变更流程
 
 任一侧契约变更：
 
@@ -197,3 +231,4 @@ export const inject = ['credentials', 'commands', 'systemPrompt', 'providers'] a
 2. 更新本文件（`docs/integration.md`）
 3. 双侧 CI 加互通测试覆盖变更点
 4. 发版时 CHANGELOG 标注对侧最低兼容版本
+

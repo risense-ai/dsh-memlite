@@ -1,5 +1,11 @@
 # dsh-memlite 方案
 
+> **0.2.0 修订（2026-11-07）**：插件逻辑已按 respire-dsh（`@rsrsai/dsh`）重写——
+> 静态规则 section、`agent/pre-step` 同步召回与注入、status 体检、敏感闸、
+> 显式存储 + 读回、`agent/turn-stopping` 收尾 steer、模型工具面。
+> 下文 §2.1（off-turn 缓存）、§2.3（autoCapture）、§三 的 `autoInject` 配置已被取代；
+> 现行设计以 [respire-alignment.md](./respire-alignment.md) 为准。
+
 > **状态**：M0 修订版（0.2.2-rc.1 实测）
 > **仓库**：`risense/dsh-memlite`
 > **npm 包名**：`@rsrsai/dsh-memlite`

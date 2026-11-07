@@ -7,7 +7,7 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import { expect } from 'vitest'
-import type { CommandDefinition, CommandResult } from '../src/types'
+import type { CommandDefinition, CommandResult, ToolDefinition } from '../src/types'
 
 /** 命令注册表替身：单 token 名强校验（复刻 dsh COMMAND_NAME 行为） + 分发。 */
 export class CommandsHost extends Service {
@@ -76,11 +76,33 @@ export class CredentialsHost extends Service {
   }
 }
 
+/** tools 服务替身：注册表 + 直接调用（形状按 dsh-tools register/execute 的公共面）。 */
+export class ToolsHost extends Service {
+  static provide = 'tools'
+  readonly definitions = new Map<string, ToolDefinition>()
+
+  register(definition: ToolDefinition): () => void {
+    if (definition?.output === undefined || typeof definition.output.render !== 'function') {
+      throw new TypeError(`tool "${definition?.name}" must declare output { schema, render }`)
+    }
+    if (this.definitions.has(definition.name)) throw new Error(`duplicate tool: ${definition.name}`)
+    this.definitions.set(definition.name, definition)
+    return () => this.definitions.delete(definition.name)
+  }
+
+  async invoke(name: string, args: Record<string, unknown> = {}): Promise<string> {
+    const definition = this.definitions.get(name)
+    if (!definition) throw new Error(`tool not found: ${name}`)
+    return await definition.execute(args, { signal: new AbortController().signal })
+  }
+}
+
 export interface TestHost {
   ctx: Context
   commands: CommandsHost
   systemPrompt: SystemPromptHost
   credentials: CredentialsHost
+  tools: ToolsHost
   dataDir: string
   /** apply 返回的清理句柄（effect 唯一 dispose 通路）。由 withPlugin() 注入。 */
   cleanup?: () => void
@@ -89,14 +111,20 @@ export interface TestHost {
 
 const dirs: string[] = []
 
+/** 隔离用户级回退：memlite 在项目级无命中时会读 ~/memlite-data，测试不能命中真实记忆库。 */
+const savedEnv = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE }
+
 export async function createTestHost(): Promise<TestHost> {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-memlite-'))
   dirs.push(dataDir)
+  process.env.HOME = dataDir
+  process.env.USERPROFILE = dataDir
   const ctx = new Context()
   const plugin = ctx.plugin as unknown as (p: unknown) => unknown
   plugin(CommandsHost)
   plugin(SystemPromptHost)
   plugin(CredentialsHost)
+  plugin(ToolsHost)
   await new Promise((r) => setTimeout(r, 5))
   const h: TestHost = {
     ctx,
@@ -104,9 +132,14 @@ export async function createTestHost(): Promise<TestHost> {
     commands: (ctx as unknown as { commands: CommandsHost }).commands,
     systemPrompt: (ctx as unknown as { systemPrompt: SystemPromptHost }).systemPrompt,
     credentials: (ctx as unknown as { credentials: CredentialsHost }).credentials,
+    tools: (ctx as unknown as { tools: ToolsHost }).tools,
     dataDir,
     dispose: async () => {
       h.cleanup?.()
+      if (savedEnv.HOME === undefined) delete process.env.HOME
+      else process.env.HOME = savedEnv.HOME
+      if (savedEnv.USERPROFILE === undefined) delete process.env.USERPROFILE
+      else process.env.USERPROFILE = savedEnv.USERPROFILE
       fs.rmSync(dataDir, { recursive: true, force: true })
       const i = dirs.indexOf(dataDir)
       if (i >= 0) dirs.splice(i, 1)
@@ -127,4 +160,32 @@ export function expectError(r: CommandResult, contains?: string): string {
   const text = r.kind === 'error' ? r.text : ''
   if (contains !== undefined) expect(text).toContain(contains)
   return text
+}
+
+/** 按宿主语义派发 agent/pre-step waterfall（最后一段是基础决策）。 */
+export async function dispatchPreStep(
+  host: TestHost,
+  payload: { agent: unknown; turn: number; signal: AbortSignal },
+  decision: { kind: 'enter' | 'reject'; messages?: unknown[] },
+): Promise<Record<string, unknown>> {
+  const waterfall = (host.ctx as unknown as {
+    waterfall(...args: unknown[]): unknown
+  }).waterfall
+  return (await waterfall.call(host.ctx, 'agent/pre-step', payload, () => decision)) as Record<string, unknown>
+}
+
+/** 从决策里取插件注入的 memlite 消息文本。 */
+export function injectedTexts(decision: Record<string, unknown>): string[] {
+  const messages = (decision['messages'] ?? []) as Array<{
+    source?: { kind?: string }
+    content?: Array<{ text?: string }>
+  }>
+  return messages
+    .filter((m) => m.source?.kind === 'memlite')
+    .map((m) => (m.content ?? []).map((b) => b.text ?? '').join('\n'))
+}
+
+/** 派发任意字符串事件（agent/* 不在 cordis Events 映射内，测试侧收窄）。 */
+export function emitEvent(host: TestHost, event: string, payload: unknown): void {
+  ;(host.ctx as unknown as { emit(name: string, ...args: unknown[]): void }).emit(event, payload)
 }

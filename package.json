@@ -1,20 +1,32 @@
 {
   "name": "@rsrsai/dsh-memlite",
   "packageManager": "pnpm@9.15.0",
-  "version": "0.1.1",
-  "description": "DSH plugin: persistent local memory powered by @rsrsai/memlite (JSONL causal tree, git sync, data-compatible with Rust memlite).",
+  "version": "0.3.1",
+  "description": "DSH plugin: persistent local memory powered by @rsrsai/memlite (respire-aligned prompt/recall/wrap-up logic; JSONL causal tree, git sync, data-compatible with Rust memlite; Web GUI settings page).",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./client": {
+      "default": "./dist/client.js"
+    },
+    "./locale/*.json": "./locale/*.json",
+    "./package.json": "./package.json"
+  },
   "files": [
     "dist",
+    "locale/*.json",
     "cordis.patch.yml"
   ],
   "engines": {
     "node": ">=18"
   },
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && node scripts/build-client.mjs",
     "prepack": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -24,6 +36,14 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-plugin-manager"
+      ]
     }
   },
   "keywords": [
@@ -54,9 +74,12 @@
     "@rsrsai/memlite-obsidian": "^0.1.0"
   },
   "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^18.3.31",
+    "esbuild": "^0.25.12",
+    "react": "^18.3.1",
     "tsup": "^8.3.0",
     "typescript": "^5.7.0",
-    "vitest": "^2.1.0",
-    "@types/node": "^22.0.0"
+    "vitest": "^2.1.0"
   }
 }

@@ -50,6 +50,8 @@ export interface PromptSection {
   readonly name: string
   readonly order: number
   readonly text: string | ((context: AssembleContext) => string)
+  /** respire-dsh 同款：静态文案不做模板插值。 */
+  readonly interpolate?: boolean
 }
 
 export interface SystemPromptService {
@@ -101,7 +103,71 @@ export type Scoped = {
   credentials?: CredentialsService
   commands?: CommandsService
   systemPrompt?: SystemPromptService
+  tools?: ToolsService
   [key: string]: unknown
+}
+
+/** 注入的用户消息（宿主 Message 的结构子集；id 由插件生成）。 */
+export interface UserMessage {
+  readonly id: string
+  readonly role: 'user'
+  readonly content: ReadonlyArray<{ readonly type: 'text'; readonly text: string }>
+  readonly source: { readonly kind: string }
+}
+
+/** agent/pre-step 载荷里的 agent 面（steer 由 turn-stopping 用）。 */
+export interface AgentLike {
+  readonly id?: unknown
+  steer?(message: UserMessage): unknown
+}
+
+/** agent/pre-step 载荷（dsh-agent runtime-types）。 */
+export interface PreStepPayload {
+  readonly agent: AgentLike
+  readonly turn: number
+  readonly signal: AbortSignal
+}
+
+/** 下游 waterfall 的决策：enter 可带 messages，reject 不再追加。 */
+export interface PreStepDecision {
+  readonly kind: 'enter' | 'reject'
+  readonly messages?: ReadonlyArray<unknown>
+  [key: string]: unknown
+}
+
+/** 模型工具定义（dsh-tools 注册面所需字段；output.render 产出具名内容块）。 */
+export interface ToolDefinition {
+  readonly name: string
+  readonly description: string
+  readonly parameters: Record<string, unknown>
+  readonly output: {
+    readonly schema: Record<string, unknown>
+    readonly render: (
+      args: Record<string, unknown>,
+      value: string,
+    ) => Array<{ readonly type: 'text'; readonly text: string }>
+  }
+  execute(
+    args: Record<string, unknown>,
+    exec: { readonly signal?: AbortSignal },
+  ): Promise<string> | string
+}
+
+export interface ToolsService {
+  register(definition: ToolDefinition): () => void
+}
+
+/** 任意字符串事件的 waterfall 监听（agent/pre-step 不在 cordis Events 映射内）。 */
+export function onWaterfall<T>(
+  ctx: PluginContext,
+  event: string,
+  listener: (payload: T, next: () => unknown) => unknown,
+): () => void {
+  const on = ctx.on as unknown as (
+    e: string,
+    l: (payload: T, next: () => unknown) => unknown,
+  ) => () => void
+  return on(event, listener)
 }
 
 /** 从宿主消息对象提取纯文本（MessageBase.content: string | ContentBlock[] 的防御式读取）。 */
