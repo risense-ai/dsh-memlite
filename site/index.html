@@ -93,7 +93,7 @@
   th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
   th { background: #f4f1ea; font-weight: 600; white-space: nowrap; }
   tr:last-child td { border-bottom: none; }
-  td code, p code, li code { font-family: var(--mono); font-size: 12.5px; background: #f1efe9; padding: 1px 6px; border-radius: 5px; }
+  td code, p code, li code, .note code { font-family: var(--mono); font-size: 12.5px; background: #f1efe9; padding: 1px 6px; border-radius: 5px; overflow-wrap: anywhere; }
   td.cmd code { white-space: nowrap; }
 
   /* 代码块 */
@@ -225,7 +225,7 @@
 
 <div class="wrap">
   <section>
-    <h2><span class="no">01</span><span data-zh>它做什么</span><span class="no" data-en style="display:none">01</span><span data-en style="display:none">What it does</span></h2>
+    <h2><span class="no">01</span><span data-zh>它做什么</span><span data-en style="display:none">What it does</span></h2>
     <p class="lead" data-zh>六个机制，全部落在你自己的机器上。</p>
     <p class="lead" data-en style="display:none">Six mechanisms, all on your own machine.</p>
     <div class="grid">
@@ -263,21 +263,66 @@
   </section>
 
   <section id="interop">
-    <h2><span class="no">02</span><span data-zh>数据互通</span><span class="no" data-en style="display:none">02</span><span data-en style="display:none">Interoperability</span></h2>
-    <p class="lead" data-zh>存储就是 memory.jsonl + emb.f32 侧车——Rust memlite CLI 写的库，插件直接读；插件写的库，Rust 直接 recall。同一份记忆，CLI、Harness、未来的 Kimi/ZCode 插件共享。</p>
-    <p class="lead" data-en style="display:none">Storage is plain memory.jsonl + an emb.f32 sidecar — libraries written by the Rust memlite CLI read directly in the plugin and vice versa. One memory, shared across CLI, Harness, and future Kimi/ZCode plugins.</p>
+    <h2><span class="no">02</span><span data-zh>互通与取舍</span><span data-en style="display:none">Interop & trade-offs</span></h2>
+    <p class="lead" data-zh>存储就是 memory.jsonl + emb.f32 侧车——Rust memlite CLI 写的库，插件直接读；插件写的库，Rust 直接 recall。同一份记忆，CLI、Harness、AstrBot 共享。</p>
+    <p class="lead" data-en style="display:none">Storage is plain memory.jsonl + an emb.f32 sidecar — libraries written by the Rust memlite CLI read directly in the plugin and vice versa. One memory, shared across the CLI, Harness, and AstrBot.</p>
+    <p class="lead" data-zh style="margin-top:10px">同门的 <a href="https://github.com/risense-ai/respire-dsh">respire-dsh</a> 是另一条产品线：它驱动 <code>rsrs</code> 加密引擎，本插件用进程内 memlite 引擎；数据格式不互通，按下面的取舍二选一。</p>
+    <p class="lead" data-en style="display:none;margin-top:10px">Its sibling <a href="https://github.com/risense-ai/respire-dsh">respire-dsh</a> is a separate line: it drives the encrypted <code>rsrs</code> engine, while this plugin runs the in-process memlite engine. The data formats do not interoperate — choose one by the trade-offs below.</p>
     <table>
-      <tr><th></th><th>plur-ai/dsh</th><th>dsh-memlite</th></tr>
-      <tr><td data-zh>存储</td><td data-en style="display:none">Storage</td><td>YAML（自有）</td><td><b>JSONL（Rust 互通）</b></td></tr>
-      <tr><td data-zh>结构</td><td data-en style="display:none">Structure</td><td>engram 列表</td><td><b>因果树（parent_id 链）</b></td></tr>
-      <tr><td data-zh>同步</td><td data-en style="display:none">Sync</td><td data-zh>本地</td><td data-en style="display:none">local</td><td><b data-zh>git 白名单同步</b><b data-en style="display:none">git whitelist sync</b></td></tr>
-      <tr><td data-zh>项目隔离</td><td data-en style="display:none">Project scope</td><td data-zh>全局</td><td data-en style="display:none">global</td><td><b data-zh>项目级 + 用户级回退</b><b data-en style="display:none">project-level + user fallback</b></td></tr>
-      <tr><td data-zh>评测</td><td data-en style="display:none">Bench</td><td>LongMemEval-S Hit@5=76.7%</td><td><b data-zh>与 Rust 对齐（hit@1=85%）</b><b data-en style="display:none">aligned with Rust (hit@1=85%)</b></td></tr>
+      <tr><th></th><th><a href="https://github.com/risense-ai/respire-dsh">respire-dsh</a></th><th>dsh-memlite</th></tr>
+      <tr>
+        <td data-zh>引擎</td><td data-en style="display:none">Engine</td>
+        <td><span data-zh><code>rsrs</code> CLI 子进程 + 常驻 Runtime（Node 24+）</span><span data-en style="display:none"><code>rsrs</code> CLI subprocess + resident Runtime (Node 24+)</span></td>
+        <td><b><span data-zh>进程内 <code>@rsrsai/memlite</code>，零子进程</span><span data-en style="display:none">In-process <code>@rsrsai/memlite</code>, no subprocess</span></b></td>
+      </tr>
+      <tr>
+        <td data-zh>模型读写</td><td data-en style="display:none">Model I/O</td>
+        <td><span data-zh>模型用 shell 跑 <code>rsrs</code></span><span data-en style="display:none">Model runs <code>rsrs</code> via shell</span></td>
+        <td><b><span data-zh>5 个 <code>memlite_*</code> 工具</span><span data-en style="display:none">Five <code>memlite_*</code> tools</span></b></td>
+      </tr>
+      <tr>
+        <td data-zh>存储</td><td data-en style="display:none">Storage</td>
+        <td><span data-zh>加密 SQLite（<code>~/.rsrs/rsrs.db</code>）</span><span data-en style="display:none">Encrypted SQLite (<code>~/.rsrs/rsrs.db</code>)</span></td>
+        <td><b><span data-zh>明文 JSONL + <code>emb.f32</code> 侧车</span><span data-en style="display:none">Plaintext JSONL + <code>emb.f32</code> sidecar</span></b></td>
+      </tr>
+      <tr>
+        <td data-zh>同步</td><td data-en style="display:none">Sync</td>
+        <td><span data-zh>密文云同步（服务端不持密钥）</span><span data-en style="display:none">Ciphertext cloud sync (server holds no keys)</span></td>
+        <td><b><span data-zh>git 白名单同步</span><span data-en style="display:none">git whitelist sync</span></b></td>
+      </tr>
+      <tr>
+        <td data-zh>项目隔离</td><td data-en style="display:none">Project scope</td>
+        <td><span data-zh>单库 + <code>project</code> 范围过滤</span><span data-en style="display:none">One library + <code>project</code> filter</span></td>
+        <td><b><span data-zh>项目级库目录 + 用户级回退</span><span data-en style="display:none">Project-level directory + user fallback</span></b></td>
+      </tr>
+      <tr>
+        <td data-zh>命令面</td><td data-en style="display:none">Commands</td>
+        <td><span data-zh>无斜杠命令，走 <code>rsrs</code> CLI</span><span data-en style="display:none">No slash commands; use the <code>rsrs</code> CLI</span></td>
+        <td><b><span data-zh>16 个 <code>/memlite-*</code></span><span data-en style="display:none">16 <code>/memlite-*</code> commands</span></b></td>
+      </tr>
+      <tr>
+        <td data-zh>生态</td><td data-en style="display:none">Ecosystem</td>
+        <td><span data-zh>12 个宿主插件共用同一 <code>rsrs</code> 库</span><span data-en style="display:none">12 host plugins share one <code>rsrs</code> library</span></td>
+        <td><b><span data-zh>Harness / CLI / AstrBot / Obsidian 桥；Rust / TS / Python 数据互通</span><span data-en style="display:none">Harness / CLI / AstrBot / Obsidian bridge; Rust / TS / Python interop</span></b></td>
+      </tr>
+      <tr>
+        <td data-zh>评测</td><td data-en style="display:none">Bench</td>
+        <td><span data-zh>自建中文集 hit@5=78.7%（2026-09，277 题）；LongMemEval 未跑</span><span data-en style="display:none">In-house 277-case set, hit@5=78.7% (2026-09); LongMemEval not run</span></td>
+        <td><b><span data-zh>BM25 hit@1=85%（与 Rust memlite 对齐）</span><span data-en style="display:none">BM25 hit@1=85% (aligned with Rust memlite)</span></b></td>
+      </tr>
+      <tr>
+        <td data-zh>共同点</td><td data-en style="display:none">Shared</td>
+        <td colspan="2"><span data-zh>规则注入 · pre-step 召回 · 状态体检 · 敏感闸 · 读回校验 · 收尾 steer · 失败回执</span><span data-en style="display:none">Rules injection · pre-step recall · status check · sensitive gate · read-back verification · wrap-up steer · failure receipts</span></td>
+      </tr>
     </table>
+    <div class="note">
+      <span data-zh>评测口径不同：respire-dsh 行是自建中文真库 277 题，dsh-memlite 行是 BM25 基准集；两者不构成同题横比。</span>
+      <span data-en style="display:none">Different bench sets: the respire-dsh figure is an in-house 277-case Chinese set, the dsh-memlite figure is a BM25 benchmark set — not a head-to-head comparison.</span>
+    </div>
   </section>
 
   <section id="commands">
-    <h2><span class="no">03</span><span data-zh>命令</span><span class="no" data-en style="display:none">03</span><span data-en style="display:none">Commands</span></h2>
+    <h2><span class="no">03</span><span data-zh>命令</span><span data-en style="display:none">Commands</span></h2>
     <p class="lead" data-zh>DSH 命令名为单 token——13 个核心 dash 名 + 3 个 Obsidian 命令，全部返回 CommandResult。</p>
     <p class="lead" data-en style="display:none">DSH command names are single tokens — 13 core dash names plus 3 Obsidian commands, all returning CommandResult.</p>
     <table>
@@ -302,7 +347,7 @@
   </section>
 
   <section id="config">
-    <h2><span class="no">04</span><span data-zh>配置</span><span class="no" data-en style="display:none">04</span><span data-en style="display:none">Configuration</span></h2>
+    <h2><span class="no">04</span><span data-zh>配置</span><span data-en style="display:none">Configuration</span></h2>
     <p class="lead" data-zh>侧栏「插件」→ <b>Memlite 记忆</b>行 → <b>配置</b>：插件自带浏览器半区，表单暂存草稿、只读生效值，保存才写入 profile 的 <code>cordis.patch.yml</code>。密钥走 credentials——永不写入配置文件或数据仓。</p>
     <p class="lead" data-en style="display:none">Sidebar → Plugins → the <b>Memlite Memory</b> row → <b>Configure</b>: the plugin ships its own browser half; the form stages a draft, shows effective values, and only Save writes to the profile's <code>cordis.patch.yml</code>. Keys live in credentials, never in config files or the data store.</p>
     <table>
@@ -337,7 +382,7 @@
   </section>
 
   <section id="install">
-    <h2><span class="no">05</span><span data-zh>安装与上手</span><span class="no" data-en style="display:none">05</span><span data-en style="display:none">Install & quick start</span></h2>
+    <h2><span class="no">05</span><span data-zh>安装与上手</span><span data-en style="display:none">Install & quick start</span></h2>
 <pre><span class="c"># 本地开发装载（npm 发布前）</span>
 pnpm -C dsh-memlite build     <span class="c"># 宿主 + 浏览器 bundle（dist/index.js、dist/client.js）</span>
 dsh plugin --profile &lt;profile&gt; add ./dsh-memlite
@@ -356,7 +401,7 @@ dsh plugin --profile &lt;profile&gt; add @rsrsai/dsh-memlite
   </section>
 
   <section id="m0">
-    <h2><span class="no">06</span><span data-zh>0.3.1 实测记</span><span class="no" data-en style="display:none">06</span><span data-en style="display:none">Field notes</span></h2>
+    <h2><span class="no">06</span><span data-zh>0.3.1 实测记</span><span data-en style="display:none">Field notes</span></h2>
     <p class="lead" data-zh>从 0.1.0 的 API 漂移，到 0.3.1 的 GUI 配置页与展示名——每一条都先在真机坐实，再回写代码与文档。</p>
     <p class="lead" data-en style="display:none">From the 0.1.0 API drifts to the 0.3.1 GUI settings page and display name — every item was confirmed on a real host before being written back into code and docs.</p>
     <ul class="drift">

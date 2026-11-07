@@ -34,6 +34,9 @@ describe('命令注册（单 token 名校验）', () => {
     const h = await hostWithPlugin()
     const text = expectSuccess(await h.commands.invoke('a1', '/memlite'), 'memlite 记忆库')
     expect(text).toContain('0 条')
+    expect(text).toContain('自动召回')
+    expect(text).toContain('自动记录')
+    expect(text).toContain('每轮开始自动检索相关记忆')
   })
 })
 
