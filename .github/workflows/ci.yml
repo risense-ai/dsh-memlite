@@ -11,91 +11,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      # @rsrsai/memlite 走 file:../memlite-js/packages-core 本地链接（npm 发布前）：
-      # sibling 仓检出后 symlink 到 workspace 外一级，使 file: 路径在 CI 与本地一致
-      - uses: actions/checkout@v4
-        with:
-          repository: risense-ai/memlite-js
-          path: memlite-js
-      - uses: actions/checkout@v4
-        with:
-          repository: risense-ai/memlite-obsidian
-          path: memlite-obsidian
-      - run: |
-          ln -s "$GITHUB_WORKSPACE/memlite-js" "$GITHUB_WORKSPACE/../memlite-js"
-          ln -s "$GITHUB_WORKSPACE/memlite-obsidian" "$GITHUB_WORKSPACE/../memlite-obsidian"
-
       - uses: pnpm/action-setup@v4
-        # 版本取自 package.json packageManager 字段
-
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
-          registry-url: https://registry.npmjs.org/
-
-      # file: 依赖的 memlite-js 检出不含构建产物——先装它自身 devDeps 并构建出 dist+d.ts
-      - name: "Build file: dependencies (memlite-js + memlite-obsidian)"
-        run: |
-          pnpm --dir memlite-js/packages/core install --frozen-lockfile
-          pnpm --dir memlite-js/packages/core build
-          pnpm --dir memlite-obsidian install --frozen-lockfile
-          pnpm --dir memlite-obsidian build
-
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm build
       - run: pnpm test
+      - run: npm pack --dry-run
 
   publish:
-    # @rsrsai/memlite 上 npm 前无法发布（file: 依赖）；发布任务就绪待解锁
     if: startsWith(github.ref, 'refs/tags/v')
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/checkout@v4
-        with:
-          repository: risense-ai/memlite-js
-          path: memlite-js
-      - uses: actions/checkout@v4
-        with:
-          repository: risense-ai/memlite-obsidian
-          path: memlite-obsidian
-      - run: |
-          ln -s "$GITHUB_WORKSPACE/memlite-js" "$GITHUB_WORKSPACE/../memlite-js"
-          ln -s "$GITHUB_WORKSPACE/memlite-obsidian" "$GITHUB_WORKSPACE/../memlite-obsidian"
-
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
+          cache: pnpm
           registry-url: https://registry.npmjs.org/
-
-      - name: "Build file: dependencies (memlite-js + memlite-obsidian)"
-        run: |
-          pnpm --dir memlite-js/packages/core install --frozen-lockfile
-          pnpm --dir memlite-js/packages/core build
-          pnpm --dir memlite-obsidian install --frozen-lockfile
-          pnpm --dir memlite-obsidian build
-
+      - run: npm install --global npm@latest
+      - name: Check release version
+        run: node --input-type=module -e 'import p from "./package.json" with { type:"json" }; if (process.env.GITHUB_REF_NAME !== "v" + p.version) throw new Error("Tag must match package version")'
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-
-      - name: Publish @rsrsai/dsh-memlite
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          if grep -q 'file:' package.json; then
-            echo "依赖仍含 file:（上游未上 npm）——npm 包暂不可发布，跳过"
-            exit 0
-          fi
-          if [ -n "$NODE_AUTH_TOKEN" ]; then
-            npm publish --access public
-          else
-            npm publish --access public --provenance
-          fi
+      - run: npm publish --access public --provenance

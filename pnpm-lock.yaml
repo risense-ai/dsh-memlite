@@ -15,11 +15,11 @@ importers:
         specifier: ~3.19.0
         version: 3.19.0
       '@rsrsai/memlite':
-        specifier: file:../memlite-js/packages/core
-        version: file:../memlite-js/packages/core
+        specifier: ^0.1.0
+        version: 0.1.1
       '@rsrsai/memlite-obsidian':
-        specifier: file:../memlite-obsidian
-        version: file:../memlite-obsidian
+        specifier: ^0.1.0
+        version: 0.1.0
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -491,13 +491,13 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@rsrsai/memlite-obsidian@file:../memlite-obsidian':
-    resolution: {directory: ../memlite-obsidian, type: directory}
+  '@rsrsai/memlite-obsidian@0.1.0':
+    resolution: {integrity: sha512-7/OMI/RPCwcasqL1JEwhPtkFoFeA+wYW9Oj0AJRZFkwfNNxGzRcARYmhg7m2Lf8Bsjpy7eqAZsrd1RX51LBc0w==}
     engines: {node: '>=18'}
     hasBin: true
 
-  '@rsrsai/memlite@file:../memlite-js/packages/core':
-    resolution: {directory: ../memlite-js/packages/core, type: directory}
+  '@rsrsai/memlite@0.1.1':
+    resolution: {integrity: sha512-KvTg8P2VmfNtpgAjqgGy1fNjyC3zt/cR+7zKDxRt6dQs6xyUnB5x/CH1n4qXzWpQ6hrls3hHE2n/bE6jO38I1Q==}
     engines: {node: '>=18'}
 
   '@standard-schema/spec@1.1.0':
@@ -1177,13 +1177,13 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.67.5':
     optional: true
 
-  '@rsrsai/memlite-obsidian@file:../memlite-obsidian':
+  '@rsrsai/memlite-obsidian@0.1.0':
     dependencies:
-      '@rsrsai/memlite': file:../memlite-js/packages/core
+      '@rsrsai/memlite': 0.1.1
       cac: 6.7.14
       gray-matter: 4.0.3
 
-  '@rsrsai/memlite@file:../memlite-js/packages/core': {}
+  '@rsrsai/memlite@0.1.1': {}
 
   '@standard-schema/spec@1.1.0': {}
 
