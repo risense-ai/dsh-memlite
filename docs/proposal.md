@@ -1,11 +1,11 @@
 # dsh-memlite 方案
 
-> **状态**：草稿
+> **状态**：M0 修订版（0.2.2-rc.1 实测）
 > **仓库**：`risense/dsh-memlite`
 > **npm 包名**：`@rsrsai/dsh-memlite`
 > **依赖**：[`@rsrsai/memlite@0.1.0`](https://github.com/risense-ai/memlite-js)
-> **DSH 版本**：`@deepseek-ai/dsh-*@0.1.0-rc.6` 或更高（**勿用 `latest`，它指向陈旧版**）
-> **撰写日期**：2026-11-07
+> **DSH 版本**：`@deepseek-ai/dsh@0.2.2-rc.1`（实测；**勿用 `latest`，它指向陈旧版**；plur 博客验证的 0.1.0-rc.6 已过时，见 §十三 漂移表）
+> **撰写日期**：2026-11-07（§十三 2026-11-07 M0 后修订）
 
 ---
 
@@ -59,16 +59,9 @@ ctx.systemPrompt.section({
 
 后果：**记忆从第二轮开始出现，永不阻塞当前轮**。
 
-### 2.2 用户主动召回
+### 2.2 用户主动召回（M0 修订：命令名单 token）
 
-```
-/memlite recall <query>     # 显式召回
-/memlite remember <content> # 显式存
-/memlite show <id>          # 看全文 + 因果视界
-/memlite tree               # 因果树
-/memlite sync               # git 同步
-/memlite status             # 库状态
-```
+`COMMAND_NAME = /^[a-z][a-z0-9_-]*$/` 强校验，注册名含空格即 throw——原文 `/memlite recall` 两段式不可用，0.1.0 改为扁平 dash 名（`/memlite-recall` 等 12 个，详见 §五）。
 
 ### 2.3 自动捕获（可选）
 
@@ -203,21 +196,22 @@ export function apply(ctx: Context, config: Config) {
 
 ---
 
-## 五、命令面
+## 五、命令面（M0 修订：扁平单 token 名）
 
 ```
-/memlite recall <query> [--limit N] [--bm25] [--project P]
-/memlite remember <content> [--title T] [--tags a,b] [--parent ID]
-/memlite show <id>
-/memlite forget <id>
-/memlite update <id> [--title T] [--content C]
-/memlite attach <child> --parent <parent>
-/memlite tree [--from ID] [--depth N] [--outline]
-/memlite chain <id> [--depth N]
-/memlite sync
-/memlite status
-/memlite reembed          # 嵌入档开启后回填旧记忆向量
-/memlite bench            # 命中率评测
+/memlite                    # 概览：库路径/条数/嵌入档/同步状态 + 快速上手
+/memlite-recall <query> [--limit N] [--bm25] [--project P]
+/memlite-remember <content> [--title T] [--tags a,b] [--parent ID]
+/memlite-show <id>
+/memlite-forget <id>
+/memlite-update <id> [--title T] [--content C]
+/memlite-attach <child> --parent <parent>
+/memlite-tree [--from ID] [--depth N] [--outline]
+/memlite-chain <id> [--depth N]
+/memlite-sync
+/memlite-status
+/memlite-reembed            # 嵌入档开启后回填旧记忆向量
+/memlite-bench              # 命中率评测
 ```
 
 命令实现 = 调用 `@rsrsai/memlite` 对应方法，返回 `CommandResult`：
@@ -376,3 +370,31 @@ dsh profile                →  cordis.yml 引用
 ## 十二、下一步
 
 进入 [plan.md](./plan.md) 的里程碑拆解。
+
+---
+
+## 十三、M0 实测修订（2026-11-07，@deepseek-ai/dsh@0.2.2-rc.1）
+
+M0 spike 用官方 npm 包在真机（macOS，dsh CLI + web/headless profile）实测完成，插件装载协议（`dsh.bundle.patch` + cordis.patch.yml `insert` 行 + `dsh plugin add` link 安装）全通：`apply(ctx, config)` 双参、`ctx.effect` setup/cleanup、`commands.register`、`systemPrompt.section`、`agent/turn-stopping` 注册均实跑成功。
+
+### 与原文的三处漂移（已按此实现）
+
+| 原文假设 | 0.2.2-rc.1 实况 | 实现对策 |
+|---|---|---|
+| `ctx.credentials.get(ref)` | `ctx.credentials.resolve(ref) → Promise<{value, source} \| undefined>` | credentialResolver 内做 `resolve` 并取 `.value` |
+| section 拼装上下文类型含 `agent` | 类型 `AssembleContext = {scope?, signal?}` **不含 agent**；但运行时 `assembleContextFor` 实传 `{agent, scope, signal}`（dsh-agent 源码） | 防御性读取 `(assembly as {agent?}).agent?.id`，无 agent 返回空 |
+| `ctx.providers.embed(...)` host 嵌入档 | **不存在**——无 providers 服务；`dsh-llm` 仅 chat `prepareCall`，无 embeddings API | host 档 0.1.0 明确不支持：加载时告警 + recall 回退 BM25；接口保留待 DSH 出 embeddings |
+
+### 关键时序（来自 dsh-agent-loop 源码，决定缓存设计）
+
+每步：`inbox.claim → tools.resolve → systemPrompt.assemble（section text 在此跑）→ agent/pre-step → LLM`。
+
+缓存双点刷新：`agent/inbox/inserted`（payload `{agent, message}`，用户消息入队即触发 recall——BM25 约 1ms 通常赶在本步 assemble 之前）+ `agent/turn-stopping`（保底下一轮新鲜）。text 函数只读缓存，永不等待。
+
+### 其余确认（与原文一致）
+
+- 命令：`{name, description, handler(invocation) → CommandResult}`；`CommandResult = {kind:'success', text?} | {kind:'error', text}`
+- `CommandInvocation = {commandId, agent, rawInput, attachments, signal}`——命令侧拿得到 agent
+- `agent/turn-stopping` payload `{agent, turn, signal}`；`agent/disposed` payload `{agent}`
+- skills：`register({name, description, content, source})`，`source: 'runtime'` 合法
+- `Agent` 公共面仅 `{id}`；runtime 面增 `session`（含 `cwd`）/`inbox`/`ctx`——项目名从 `agent.session.cwd` 走 memlite 的 `findProjectDir` 防御性解析

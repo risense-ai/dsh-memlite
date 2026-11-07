@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # @rsrsai/memlite 走 file:../memlite-js/packages-core 本地链接（npm 发布前）：
+      # sibling 仓检出后 symlink 到 workspace 外一级，使 file: 路径在 CI 与本地一致
+      - uses: actions/checkout@v4
+        with:
+          repository: risense-ai/memlite-js
+          path: memlite-js
+      - run: ln -s "$GITHUB_WORKSPACE/memlite-js" "$GITHUB_WORKSPACE/../memlite-js"
+
+      - uses: pnpm/action-setup@v4
+        # 版本取自 package.json packageManager 字段
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org/
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm build
+      - run: pnpm test
+
+  publish:
+    # @rsrsai/memlite 上 npm 前无法发布（file: 依赖）；发布任务就绪待解锁
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org/
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Publish @rsrsai/dsh-memlite
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          HAS_TOKEN: ${{ secrets.NPM_TOKEN != '' }}
+        run: |
+          if [ "$HAS_TOKEN" = "true" ]; then
+            npm publish --access public
+          else
+            echo "未配置 NPM_TOKEN，跳过发布"
+          fi

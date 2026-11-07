@@ -95,15 +95,16 @@ import Schema from '@deepseek-ai/schemastery'
 ### 必需服务（inject）
 
 ```ts
-export const inject = ['credentials', 'commands', 'systemPrompt', 'providers'] as const
+export const inject = ['credentials', 'commands', 'systemPrompt'] as const
 ```
 
 | 服务 | 用途 |
 |---|---|
-| `credentials` | 嵌入档密钥读取 |
+| `credentials` | 嵌入档密钥读取：`ctx.credentials.resolve(ref) → Promise<{value, source} \| undefined>`（0.2.2-rc.1 实测；**方法名是 resolve 不是 get**） |
 | `commands` | 注册 `/memlite` 系列命令 |
 | `systemPrompt` | 注册 prompt section |
-| `providers` | host 嵌入档（`ctx.providers.embed(...)`） |
+
+`providers` 服务在 0.2.2-rc.1 **不存在**（dsh-llm 无 embeddings API）——host 嵌入档当前版本明确不支持，插件加载时告警并回退 BM25。
 
 ### 关键陷阱（来自 plur-ai 实战）
 

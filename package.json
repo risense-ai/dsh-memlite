@@ -1,0 +1,55 @@
+{
+  "name": "@rsrsai/dsh-memlite",
+  "version": "0.1.0",
+  "description": "DSH plugin: persistent local memory powered by @rsrsai/memlite (JSONL causal tree, git sync, data-compatible with Rust memlite).",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist", "cordis.patch.yml"],
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "build": "tsup",
+    "prepack": "npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "keywords": [
+    "dsh-plugin",
+    "memory",
+    "memlite",
+    "local-first",
+    "bm25",
+    "embedding"
+  ],
+  "author": "risense",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/risense-ai/dsh-memlite.git"
+  },
+  "bugs": {
+    "url": "https://github.com/risense-ai/dsh-memlite/issues"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "~4.1.0",
+    "@deepseek-ai/schemastery": "~3.19.0",
+    "@rsrsai/memlite": "file:../memlite-js/packages/core"
+  },
+  "devDependencies": {
+    "tsup": "^8.3.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0",
+    "@types/node": "^22.0.0"
+  }
+}
