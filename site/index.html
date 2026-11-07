@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#f8f6f2" />
+<meta name="description" content="dsh-memlite — DeepSeek Harness 的持久本地记忆插件：因果树、零 tool 调用注入、敏感闸、git 同步，与 Rust memlite 数据互通。" />
+<title>dsh-memlite — DeepSeek Harness 的持久本地记忆</title>
+<style>
+  :root {
+    --paper: #f8f6f2;
+    --ink: #2b2a27;
+    --ink-soft: #6b675f;
+    --line: #e5e0d6;
+    --accent: #3e6b4f;
+    --accent-soft: #eef3ee;
+    --warn: #a05a2c;
+    --card: #ffffff;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+
+  /* 语言切换 */
+  html[lang="en"] [data-zh] { display: none; }
+  html:not([lang="en"]) [data-en] { display: none; }
+  .lang-switch {
+    position: fixed; top: 16px; right: 16px; z-index: 10;
+    font-size: 13px; padding: 6px 14px; border: 1px solid var(--line);
+    border-radius: 999px; background: var(--card); color: var(--ink-soft);
+    cursor: pointer; font-family: var(--sans);
+  }
+  .lang-switch:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* 顶栏 */
+  header {
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, #fbfaf7 0%, var(--paper) 100%);
+  }
+  .nav { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: 0.2px; }
+  .brand svg { flex: none; }
+  .nav a { color: var(--ink-soft); text-decoration: none; font-size: 14px; margin-left: 18px; }
+  .nav a:hover { color: var(--accent); }
+
+  /* Hero */
+  .hero { padding: 64px 0 48px; text-align: center; }
+  .hero h1 { font-size: clamp(28px, 5vw, 42px); line-height: 1.25; font-weight: 800; letter-spacing: 0.5px; }
+  .hero h1 .accent { color: var(--accent); }
+  .hero p.sub { margin: 16px auto 0; max-width: 640px; color: var(--ink-soft); font-size: 17px; }
+  .badges { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+  .badge {
+    font-size: 13px; padding: 5px 13px; border-radius: 999px;
+    background: var(--accent-soft); color: var(--accent); border: 1px solid #dce8df;
+  }
+  .badge.gray { background: #f1efe9; color: var(--ink-soft); border-color: var(--line); }
+  .cta { margin-top: 30px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .cta a {
+    text-decoration: none; font-size: 15px; padding: 11px 26px; border-radius: 10px;
+    border: 1px solid var(--line); color: var(--ink); background: var(--card);
+  }
+  .cta a.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .cta a:hover { opacity: 0.92; }
+
+  /* 注入时序图 */
+  .flow { margin: 46px auto 0; max-width: 820px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 26px 18px 14px; }
+  .flow svg { width: 100%; height: auto; display: block; }
+  .flow p.cap { text-align: center; color: var(--ink-soft); font-size: 13px; margin-top: 8px; }
+
+  /* 区块 */
+  section { padding: 46px 0 8px; }
+  h2 { font-size: 24px; margin-bottom: 8px; letter-spacing: 0.3px; }
+  h2 .no { color: var(--accent); font-family: var(--mono); font-size: 16px; margin-right: 8px; }
+  section > p.lead { color: var(--ink-soft); max-width: 720px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 24px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+  .card h3 { font-size: 16px; margin-bottom: 8px; }
+  .card p { font-size: 14px; color: var(--ink-soft); }
+  .card .icon { font-size: 20px; margin-bottom: 10px; }
+
+  /* 表格 */
+  table { display: block; width: 100%; border-collapse: collapse; margin-top: 20px; background: var(--card); border-radius: 12px; overflow-x: auto; border: 1px solid var(--line); font-size: 14px; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: #f4f1ea; font-weight: 600; white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  td code, p code, li code { font-family: var(--mono); font-size: 12.5px; background: #f1efe9; padding: 1px 6px; border-radius: 5px; }
+  td.cmd code { white-space: nowrap; }
+
+  /* 代码块 */
+  pre {
+    background: #26251f; color: #e8e4da; border-radius: 12px; padding: 18px 20px;
+    overflow-x: auto; font-family: var(--mono); font-size: 13.5px; line-height: 1.7; margin-top: 18px;
+  }
+  pre .c { color: #8b9a83; }
+
+  /* 提示块 */
+  .note { margin-top: 16px; border-left: 3px solid var(--warn); background: #faf3ea; padding: 12px 16px; border-radius: 0 10px 10px 0; font-size: 14px; color: var(--ink-soft); }
+
+  /* 漂移清单 */
+  .drift { margin-top: 20px; }
+  .drift li { margin: 8px 0 8px 20px; font-size: 14.5px; color: var(--ink-soft); }
+  .drift li b { color: var(--ink); }
+
+  footer { margin-top: 64px; border-top: 1px solid var(--line); padding: 28px 0 40px; color: var(--ink-soft); font-size: 13.5px; }
+  footer .wrap { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  footer a { color: var(--ink-soft); }
+
+  @media (max-width: 640px) {
+    .nav a { margin-left: 12px; }
+    .hero { padding: 44px 0 32px; }
+    th, td { padding: 8px 10px; }
+  }
+</style>
+</head>
+<body>
+<button class="lang-switch" id="langBtn" onclick="toggleLang()">EN</button>
+
+<header>
+  <div class="wrap nav">
+    <div class="brand">
+      <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true">
+        <rect x="1" y="1" width="24" height="24" rx="6" fill="#3e6b4f"/>
+        <circle cx="9" cy="9" r="2.2" fill="#f8f6f2"/>
+        <circle cx="17" cy="13" r="2.2" fill="#f8f6f2"/>
+        <circle cx="10" cy="18" r="2.2" fill="#f8f6f2"/>
+        <path d="M9 9 L17 13 L10 18 M9 9 L10 18" stroke="#f8f6f2" stroke-width="1.3" fill="none" opacity="0.8"/>
+      </svg>
+      dsh-memlite
+    </div>
+    <nav>
+      <a href="#how" data-zh>机制</a><a href="#how" data-en style="display:none">How</a>
+      <a href="#commands" data-zh>命令</a><a href="#commands" data-en style="display:none">Commands</a>
+      <a href="#config" data-zh>配置</a><a href="#config" data-en style="display:none">Config</a>
+      <a href="#m0" data-zh>实测记</a><a href="#m0" data-en style="display:none">Field notes</a>
+      <a href="https://github.com/risense-ai/dsh-memlite" data-zh>GitHub</a><a href="https://github.com/risense-ai/dsh-memlite" data-en style="display:none">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap hero">
+  <h1>
+    <span data-zh>给你的 Harness 一棵<span class="accent">会生长的记忆树</span></span>
+    <span data-en style="display:none">A <span class="accent">growing memory tree</span> for your Harness</span>
+  </h1>
+  <p class="sub">
+    <span data-zh>dsh-memlite 把 memlite 的因果树记忆装进 DeepSeek Harness：相关记忆自动注入 system prompt，零 tool 调用、不阻塞当前轮；数据落本地 JSONL，与 Rust memlite 双向互通。</span>
+    <span data-en style="display:none">dsh-memlite brings the memlite causal-tree memory into DeepSeek Harness: relevant memories are injected into the system prompt every turn — zero tool calls, never blocking — stored as local JSONL, fully interoperable with Rust memlite.</span>
+  </p>
+  <div class="badges">
+    <span class="badge">v0.1.0</span>
+    <span class="badge" data-zh>13 个命令</span><span class="badge" data-en style="display:none">13 commands</span>
+    <span class="badge" data-zh>零 tool 调用</span><span class="badge" data-en style="display:none">zero tool calls</span>
+    <span class="badge" data-zh>与 Rust 互通</span><span class="badge" data-en style="display:none">Rust-compatible</span>
+    <span class="badge gray">dsh 0.2.2-rc.1 实测</span>
+    <span class="badge gray">MIT</span>
+  </div>
+  <div class="cta">
+    <a class="primary" href="#install" data-zh>开始使用</a><a class="primary" href="#install" data-en style="display:none">Get started</a>
+    <a href="https://github.com/risense-ai/dsh-memlite" data-zh>查看源码</a><a href="https://github.com/risense-ai/dsh-memlite" data-en style="display:none">Source</a>
+  </div>
+
+  <div class="flow" id="how">
+    <svg viewBox="0 0 760 190" role="img" aria-label="injection timing">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#6b675f"/>
+        </marker>
+      </defs>
+      <g font-family="ui-monospace, Menlo, monospace" font-size="13" fill="#2b2a27">
+        <rect x="16"  y="56" width="128" height="46" rx="10" fill="#eef3ee" stroke="#3e6b4f"/>
+        <text x="80"  y="76" text-anchor="middle">inbox/inserted</text>
+        <text x="80"  y="92" text-anchor="middle" fill="#6b675f" font-size="11" data-zh>用户消息入队</text>
+        <text x="80"  y="92" text-anchor="middle" fill="#6b675f" font-size="11" data-en style="display:none">user message</text>
+
+        <rect x="192" y="56" width="150" height="46" rx="10" fill="#eef3ee" stroke="#3e6b4f"/>
+        <text x="267" y="76" text-anchor="middle">recall off-turn</text>
+        <text x="267" y="92" text-anchor="middle" fill="#6b675f" font-size="11">BM25 / RRF</text>
+
+        <rect x="366" y="56" width="128" height="46" rx="10" fill="#f4f1ea" stroke="#a08c5a"/>
+        <text x="430" y="76" text-anchor="middle">assemble</text>
+        <text x="430" y="92" text-anchor="middle" fill="#6b675f" font-size="11" data-zh>section 读缓存</text>
+        <text x="430" y="92" text-anchor="middle" fill="#6b675f" font-size="11" data-en style="display:none">section reads cache</text>
+
+        <rect x="546" y="56" width="90" height="46" rx="10" fill="#f4f1ea" stroke="#a08c5a"/>
+        <text x="591" y="84" text-anchor="middle">LLM step</text>
+
+        <rect x="272" y="140" width="180" height="36" rx="18" fill="#ffffff" stroke="#e5e0d6"/>
+        <text x="362" y="163" text-anchor="middle" fill="#3e6b4f" font-size="12" data-zh>turn-stopping 保底刷新</text>
+        <text x="362" y="163" text-anchor="middle" fill="#3e6b4f" font-size="12" data-en style="display:none">turn-stopping refresh</text>
+
+        <line x1="144" y1="79" x2="186" y2="79" stroke="#6b675f" stroke-width="1.4" marker-end="url(#arr)"/>
+        <line x1="342" y1="79" x2="360" y2="79" stroke="#6b675f" stroke-width="1.4" marker-end="url(#arr)"/>
+        <line x1="494" y1="79" x2="540" y2="79" stroke="#6b675f" stroke-width="1.4" marker-end="url(#arr)"/>
+        <path d="M430 102 C 430 138, 400 156, 368 158" stroke="#3e6b4f" stroke-width="1.2" stroke-dasharray="4 4" fill="none"/>
+        <path d="M300 156 C 250 150, 230 120, 250 104" stroke="#3e6b4f" stroke-width="1.2" stroke-dasharray="4 4" fill="none" marker-end="url(#arr)"/>
+      </g>
+    </svg>
+    <p class="cap">
+      <span data-zh>section 的 text 是同步函数，只读内存缓存——recall 永不在轮上等待；默认 BM25 约 1ms，通常赶在本步 assemble 之前就绪。</span>
+      <span data-en style="display:none">The section's text is a synchronous function reading an in-memory cache — recall never waits on the turn; default BM25 (~1ms) is usually ready before the step assembles.</span>
+    </p>
+  </div>
+</div>
+
+<div class="wrap">
+  <section>
+    <h2><span class="no">01</span><span data-zh>它做什么</span><span class="no" data-en style="display:none">01</span><span data-en style="display:none">What it does</span></h2>
+    <p class="lead" data-zh>四个机制，全部落在你自己的机器上。</p>
+    <p class="lead" data-en style="display:none">Four mechanisms, all on your own machine.</p>
+    <div class="grid">
+      <div class="card"><div class="icon">🧠</div>
+        <h3 data-zh>自动注入</h3><h3 data-en style="display:none">Auto injection</h3>
+        <p data-zh>每轮把与对话相关的记忆拼进 system prompt（可调条数与字符上限）。记忆从对话第二轮起出现，永不阻塞当前轮。</p>
+        <p data-en style="display:none">Relevant memories are assembled into the system prompt every turn (tunable count & char cap). Memory appears from the second turn onward and never blocks.</p>
+      </div>
+      <div class="card"><div class="icon">🌳</div>
+        <h3 data-zh>因果树</h3><h3 data-en style="display:none">Causal tree</h3>
+        <p data-zh>记忆是父子链：父=因、子=果。命中即见前因后果，防环 64 层封顶；/memlite-chain 一把取回整条链。</p>
+        <p data-en style="display:none">Memories form parent-child chains: parent = cause, child = effect. Hits show their causes and effects; cycles capped at 64 levels; /memlite-chain retrieves a whole chain.</p>
+      </div>
+      <div class="card"><div class="icon">🛡️</div>
+        <h3 data-zh>敏感闸</h3><h3 data-en style="display:none">Sensitive gate</h3>
+        <p data-zh>写前扫描明文口令、API 密钥、身份证、银行卡（Luhn）、手机号、JWT、PEM 私钥——命中即拒，提示改存位置指针。</p>
+        <p data-en style="display:none">Pre-write scan for plaintext passwords, API keys, ID numbers, bank cards (Luhn), phone numbers, JWT, PEM keys — hits are rejected with a pointer suggestion.</p>
+      </div>
+      <div class="card"><div class="icon">🔄</div>
+        <h3 data-zh>git 同步</h3><h3 data-en style="display:none">Git sync</h3>
+        <p data-zh>白名单 add + pathspec commit（不卷走你已暂存的改动）+ rebase --autostash + push 后 ls-remote 双通道 sha 核验。</p>
+        <p data-en style="display:none">Whitelist add + pathspec commit (never sweeps your staged work) + rebase --autostash + push with ls-remote dual-channel sha verification.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="interop">
+    <h2><span class="no">02</span><span data-zh>数据互通</span><span class="no" data-en style="display:none">02</span><span data-en style="display:none">Interoperability</span></h2>
+    <p class="lead" data-zh>存储就是 memory.jsonl + emb.f32 侧车——Rust memlite CLI 写的库，插件直接读；插件写的库，Rust 直接 recall。同一份记忆，CLI、Harness、未来的 Kimi/ZCode 插件共享。</p>
+    <p class="lead" data-en style="display:none">Storage is plain memory.jsonl + an emb.f32 sidecar — libraries written by the Rust memlite CLI read directly in the plugin and vice versa. One memory, shared across CLI, Harness, and future Kimi/ZCode plugins.</p>
+    <table>
+      <tr><th></th><th>plur-ai/dsh</th><th>dsh-memlite</th></tr>
+      <tr><td data-zh>存储</td><td data-en style="display:none">Storage</td><td>YAML（自有）</td><td><b>JSONL（Rust 互通）</b></td></tr>
+      <tr><td data-zh>结构</td><td data-en style="display:none">Structure</td><td>engram 列表</td><td><b>因果树（parent_id 链）</b></td></tr>
+      <tr><td data-zh>同步</td><td data-en style="display:none">Sync</td><td data-zh>本地</td><td data-en style="display:none">local</td><td><b data-zh>git 白名单同步</b><b data-en style="display:none">git whitelist sync</b></td></tr>
+      <tr><td data-zh>项目隔离</td><td data-en style="display:none">Project scope</td><td data-zh>全局</td><td data-en style="display:none">global</td><td><b data-zh>项目级 + 用户级回退</b><b data-en style="display:none">project-level + user fallback</b></td></tr>
+      <tr><td data-zh>评测</td><td data-en style="display:none">Bench</td><td>LongMemEval-S Hit@5=76.7%</td><td><b data-zh>与 Rust 对齐（hit@1=85%）</b><b data-en style="display:none">aligned with Rust (hit@1=85%)</b></td></tr>
+    </table>
+  </section>
+
+  <section id="commands">
+    <h2><span class="no">03</span><span data-zh>命令</span><span class="no" data-en style="display:none">03</span><span data-en style="display:none">Commands</span></h2>
+    <p class="lead" data-zh>DSH 命令名为单 token——13 个扁平 dash 名，全部返回 CommandResult。</p>
+    <p class="lead" data-en style="display:none">DSH command names are single tokens — 13 flat dash names, all returning CommandResult.</p>
+    <table>
+      <tr><th data-zh>命令</th><th data-en style="display:none">Command</th><th data-zh>作用</th><th data-en style="display:none">Purpose</th></tr>
+      <tr><td class="cmd"><code>/memlite</code></td><td data-zh>概览与快速上手</td><td data-en style="display:none">Overview & quick start</td></tr>
+      <tr><td class="cmd"><code>/memlite-recall &lt;query&gt; [--limit N] [--bm25] [--project P]</code></td><td data-zh>检索（语义/词面/RRF 自动选档）</td><td data-en style="display:none">Recall (semantic/lexical/RRF auto)</td></tr>
+      <tr><td class="cmd"><code>/memlite-remember &lt;content&gt; [--title T] [--tags a,b] [--parent ID]</code></td><td data-zh>存记忆并认因</td><td data-en style="display:none">Store with optional parent</td></tr>
+      <tr><td class="cmd"><code>/memlite-show &lt;id&gt;</code></td><td data-zh>全文 + 因果视界</td><td data-en style="display:none">Full text + causal view</td></tr>
+      <tr><td class="cmd"><code>/memlite-forget &lt;id&gt;</code></td><td data-zh>删（墓碑）</td><td data-en style="display:none">Delete (tombstone)</td></tr>
+      <tr><td class="cmd"><code>/memlite-update &lt;id&gt; [--title T] [--content C]</code></td><td data-zh>就地改（追加新版本）</td><td data-en style="display:none">Update (append new version)</td></tr>
+      <tr><td class="cmd"><code>/memlite-attach &lt;child&gt; --parent &lt;parent&gt;</code></td><td data-zh>挂链（防自挂防环）</td><td data-en style="display:none">Attach (cycle-guarded)</td></tr>
+      <tr><td class="cmd"><code>/memlite-tree [--from ID] [--depth N] [--outline]</code></td><td data-zh>因果树渲染</td><td data-en style="display:none">Render the causal tree</td></tr>
+      <tr><td class="cmd"><code>/memlite-chain &lt;id&gt; [--depth N]</code></td><td data-zh>因链全文 + 果链下探</td><td data-en style="display:none">Ancestors + descendants</td></tr>
+      <tr><td class="cmd"><code>/memlite-sync</code></td><td data-zh>git 白名单同步</td><td data-en style="display:none">Git whitelist sync</td></tr>
+      <tr><td class="cmd"><code>/memlite-status</code></td><td data-zh>库状态</td><td data-en style="display:none">Library status</td></tr>
+      <tr><td class="cmd"><code>/memlite-reembed</code></td><td data-zh>旧记忆回填向量</td><td data-en style="display:none">Backfill embeddings</td></tr>
+      <tr><td class="cmd"><code>/memlite-bench</code></td><td data-zh>命中率评测（20×20）</td><td data-en style="display:none">Hit-rate bench (20×20)</td></tr>
+    </table>
+  </section>
+
+  <section id="config">
+    <h2><span class="no">04</span><span data-zh>配置</span><span class="no" data-en style="display:none">04</span><span data-en style="display:none">Configuration</span></h2>
+    <p class="lead" data-zh>DSH 设置页自动渲染表单，零前端代码。密钥走 credentials——永不写入配置文件或数据仓。</p>
+    <p class="lead" data-en style="display:none">DSH renders the settings form automatically — zero frontend code. Keys live in credentials, never in config files or the data store.</p>
+    <table>
+      <tr><th data-zh>字段</th><th data-en style="display:none">Field</th><th data-zh>默认</th><th data-en style="display:none">Default</th><th data-zh>说明</th><th data-en style="display:none">Notes</th></tr>
+      <tr><td><code>dataDir</code></td><td><code>''</code></td><td data-zh>留空自动解析（MEMLITE_DATA &gt; 项目级 &gt; 用户级 &gt; ~/memlite-data）</td><td data-en style="display:none">Empty = auto-resolve</td></tr>
+      <tr><td><code>recallLimit</code></td><td><code>10</code></td><td data-zh>单次召回上限</td><td data-en style="display:none">Recall limit</td></tr>
+      <tr><td><code>autoInject</code></td><td><code>true / 5 / 2000</code></td><td data-zh>注入开关 / 条数 / 字符上限</td><td data-en style="display:none">Inject toggle / count / char cap</td></tr>
+      <tr><td><code>sync</code></td><td><code>false</code></td><td data-zh>挂载时自动 git 同步</td><td data-en style="display:none">Auto git sync on mount</td></tr>
+      <tr><td><code>embedding.provider</code></td><td><code>none</code></td><td data-zh>none / openai-compatible / host</td><td data-en style="display:none">none / openai-compatible / host</td></tr>
+      <tr><td><code>embedding.credentialRef</code></td><td><code>MEMLITE_EMBED_API_KEY</code></td><td data-zh>凭据引用名</td><td data-en style="display:none">Credential reference</td></tr>
+      <tr><td><code>sensitiveGate</code></td><td><code>true</code></td><td data-zh>写前敏感扫描</td><td data-en style="display:none">Pre-write sensitive scan</td></tr>
+    </table>
+    <div class="note">
+      <span data-zh>嵌入三档：none（默认，纯 BM25 零外网）→ openai-compatible（独立嵌入服务，密钥走 credentials）→ host 在 DSH 0.2.x 暂不可用（宿主无 embeddings API，插件加载时告警并自动回退 BM25——明示降级，不静默）。</span>
+      <span data-en style="display:none">Three embedding tiers: none (default, pure BM25, zero network) → openai-compatible (dedicated service, key via credentials) → host is unavailable on DSH 0.2.x (host has no embeddings API; the plugin warns and falls back to BM25 — explicit, not silent).</span>
+    </div>
+  </section>
+
+  <section id="install">
+    <h2><span class="no">05</span><span data-zh>安装与上手</span><span class="no" data-en style="display:none">05</span><span data-en style="display:none">Install & quick start</span></h2>
+<pre><span class="c"># 本地开发装载（npm 发布前）</span>
+pnpm -C dsh-memlite build
+dsh plugin --profile &lt;profile&gt; add ./dsh-memlite
+
+<span class="c"># 对话里</span>
+/memlite-remember nginx 504 排查手册 --title nginx题
+/memlite-remember 下游结论 --parent &lt;id&gt;
+/memlite-recall 网关超时
+/memlite-tree --outline</pre>
+    <p class="lead" data-zh style="margin-top:14px">记住一条因，补一条果——下次相关对话开始时，记忆已经在 prompt 里。</p>
+    <p class="lead" data-en style="display:none" style="margin-top:14px">Record a cause, append an effect — next time a related conversation starts, the memory is already in the prompt.</p>
+  </section>
+
+  <section id="m0">
+    <h2><span class="no">06</span><span data-zh>M0 实测记</span><span class="no" data-en style="display:none">06</span><span data-en style="display:none">Field notes</span></h2>
+    <p class="lead" data-zh>0.1.0 在 dsh 0.2.2-rc.1 真机验证，四处 API 与旧文档不符——全部实测坐实并回写方案。这也是本插件与「mock 测试通过、真机失败」路线的区别。</p>
+    <p class="lead" data-en style="display:none">0.1.0 was verified on a real dsh 0.2.2-rc.1 host; four APIs differed from older docs — all confirmed on the machine and written back into the proposal.</p>
+    <ul class="drift">
+      <li><b>credentials.resolve(ref)</b> <span data-zh>返回 {value, source}——不是 get(ref)。</span><span data-en style="display:none">returns {value, source} — not get(ref).</span></li>
+      <li><b>AssembleContext</b> <span data-zh>类型面无 agent 字段，运行时实传 {agent, scope, signal}——防御性读取。</span><span data-en style="display:none">has no agent field in types, but the runtime passes {agent, scope, signal} — read defensively.</span></li>
+      <li><b data-zh>无 providers 服务</b><b data-en style="display:none">No providers service</b> <span data-zh>——dsh-llm 只有 chat，无 embeddings；host 档明示回退。</span><span data-en style="display:none">— dsh-llm is chat-only; the host tier falls back explicitly.</span></li>
+      <li><b>COMMAND_NAME</b> <span data-zh>单 token 正则——命令名含空格注册即拒。</span><span data-en style="display:none">is a single-token regex — spaced names are rejected at registration.</span></li>
+    </ul>
+  </section>
+</div>
+
+<footer>
+  <div class="wrap">
+    <div>
+      <span data-zh>dsh-memlite — 由 <a href="https://github.com/risense-ai">risense</a> 维护，MIT 协议。</span>
+      <span data-en style="display:none">dsh-memlite — maintained by <a href="https://github.com/risense-ai">risense</a>, MIT.</span>
+    </div>
+    <div>
+      <a href="https://github.com/risense-ai/dsh-memlite">GitHub</a> ·
+      <a href="https://github.com/risense-ai/memlite-js">@rsrsai/memlite</a> ·
+      <a href="https://github.com/risense-ai/respire-memlite">respire-memlite (Rust)</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  function toggleLang() {
+    const html = document.documentElement
+    const toEn = html.lang === 'zh'
+    html.lang = toEn ? 'en' : 'zh'
+    document.getElementById('langBtn').textContent = toEn ? '中' : 'EN'
+    document.querySelectorAll('[data-en]').forEach(el => el.style.display = toEn ? '' : 'none')
+    document.querySelectorAll('[data-zh]').forEach(el => el.style.display = toEn ? 'none' : '')
+  }
+</script>
+</body>
+</html>
