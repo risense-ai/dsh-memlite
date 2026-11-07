@@ -61,7 +61,7 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org/
 
-      - name: Build @rsrsai/memlite (file: dependency)
+      - name: "Build @rsrsai/memlite (file: dependency)"
         run: |
           pnpm --dir memlite-js/packages/core install --frozen-lockfile
           pnpm --dir memlite-js/packages/core build
