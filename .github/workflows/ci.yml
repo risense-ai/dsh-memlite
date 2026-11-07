@@ -36,10 +36,12 @@ jobs:
           registry-url: https://registry.npmjs.org/
 
       # file: 依赖的 memlite-js 检出不含构建产物——先装它自身 devDeps 并构建出 dist+d.ts
-      - name: "Build @rsrsai/memlite (file: dependency)"
+      - name: "Build file: dependencies (memlite-js + memlite-obsidian)"
         run: |
           pnpm --dir memlite-js/packages/core install --frozen-lockfile
           pnpm --dir memlite-js/packages/core build
+          pnpm --dir memlite-obsidian install --frozen-lockfile
+          pnpm --dir memlite-obsidian build
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
@@ -73,10 +75,12 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org/
 
-      - name: "Build @rsrsai/memlite (file: dependency)"
+      - name: "Build file: dependencies (memlite-js + memlite-obsidian)"
         run: |
           pnpm --dir memlite-js/packages/core install --frozen-lockfile
           pnpm --dir memlite-js/packages/core build
+          pnpm --dir memlite-obsidian install --frozen-lockfile
+          pnpm --dir memlite-obsidian build
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
