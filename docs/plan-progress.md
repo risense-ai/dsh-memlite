@@ -210,3 +210,6 @@
 - [x] GitHub release `v0.5.0`（非 draft/prerelease）
 - [x] tag CI 两 run 全绿（test + publish，OIDC provenance）
 - [x] Pages 未触发：`site/**` 无改动，线上站点无需更新
+- [x] 2026-11-08 后续重构：`MemliteMemory.tsx` 2535 行拆为 35 行入口 +
+      `memory-panel-controller`（组合）/`memory-panel-data`（浏览状态）/`memory-panel-writes`（编辑器与回执）+
+      四视图文件 + `memory-widgets`/`memory-styles`/`memory-view-types`；197 例测试与 build 回归通过

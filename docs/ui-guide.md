@@ -1,7 +1,12 @@
 # dsh-memlite 界面指南（0.5.0）
 
-> 对应实现：`src/client/MemliteMemory.tsx`、`memory-editor.tsx`、`memory-receipt.tsx`、
-> `memory-status-view.tsx`、`memory-ui.ts`。截图见 `docs/images/ui-v0.5.0/`（本地 preview fixture）。
+> 对应实现（按职责拆分）：
+> `MemliteMemory.tsx`（入口）→ `memory-panel-controller.ts`（组合）→
+> `memory-panel-data.ts`（加载/浏览状态）＋ `memory-panel-writes.ts`（编辑器/回执/同步动作）→
+> `memory-panel-view.tsx`（纯展示骨架）＋ `memory-session-view.tsx` / `memory-library-view.tsx` /
+> `memory-detail-view.tsx` / `memory-tree-view.tsx` / `memory-status-view.tsx`（视图）＋
+> `memory-editor.tsx` / `memory-receipt.tsx`（交互组件）＋ `memory-widgets.tsx` / `memory-styles.ts` /
+> `memory-view-types.ts`（共享层）。截图见 `docs/images/ui-v0.5.0/`（本地 preview fixture）。
 >
 > 本地预览：`pnpm preview` 后 `python3 -m http.server 8123 -d preview`，打开 `http://127.0.0.1:8123/`。
 

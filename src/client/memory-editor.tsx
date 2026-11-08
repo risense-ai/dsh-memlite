@@ -7,7 +7,6 @@
 import type { ReactNode } from 'react'
 import type { MemoryWriteReceipt } from '../browser-contract'
 import {
-  COLOR_ERROR,
   COLOR_WARNING,
   badgeRowStyle,
   badgeStyle,
