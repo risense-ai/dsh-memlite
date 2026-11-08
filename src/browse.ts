@@ -10,6 +10,7 @@
  * - 纯函数 + 一次 O(n) 内存遍历：本地记忆库规模（千级）内可接受，且不阻塞事件循环之外的 IO。
  */
 import type { Memlite, MemRecord } from '@rsrsai/memlite'
+import { parentId, recordRevision } from '@rsrsai/memlite'
 import {
   DEFAULT_PROJECTION_LIMITS,
   recordImportance,
@@ -205,6 +206,7 @@ function summaryItem(
     ts: record.ts,
     importance: recordImportance(record),
     kind: recordKind(record),
+    revision: recordRevision(record),
     childCount,
     leaf: childCount === 0,
   }
@@ -242,6 +244,7 @@ export async function searchMemories(
     ms: Number.isFinite(result.ms) ? result.ms : 0,
     items: hits.slice(0, limit).map((hit) => {
       const childCount = Array.isArray(hit.children) ? hit.children.length : 0
+      const stored = mem.store.get(hit.id)
       return {
         id: hit.id,
         title: clipText(hit.title !== '' ? hit.title : hit.content, limits.titleChars),
@@ -249,8 +252,9 @@ export async function searchMemories(
         tags: cleanTags(hit.tags, limits.tags),
         project: String(hit.project ?? '').slice(0, 100),
         ts: Number.isFinite(hit.ts) ? hit.ts : 0,
-        importance: '',
-        kind: '',
+        importance: stored ? recordImportance(stored) : '',
+        kind: stored ? recordKind(stored) : '',
+        revision: stored ? recordRevision(stored) : 0,
         childCount,
         leaf: childCount === 0,
         // 召回原始分数（BM25 可 >1；RRF 融合分通常 ≤1）；只做非负截断，UI 以三位小数展示。
@@ -311,6 +315,8 @@ export function showMemory(mem: Memlite, id: string): Omit<MemoryShowResponse, '
     ts: record.ts,
     importance: recordImportance(record),
     kind: recordKind(record),
+    revision: recordRevision(record),
+    parentId: parentId(record),
     childCount: shown.children.length,
     leaf: shown.children.length === 0,
   }

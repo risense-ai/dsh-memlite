@@ -183,3 +183,21 @@
       分数上限截断（改为召回原始分）、面板时间显示 UTC（改为浏览器本地时区）
 - [ ] 发布（npm + Hub）单列，未随实现执行
 - [ ] Desktop 载体的人工交互复验（与 Web 共用 bundle，本轮仅 Web 覆盖）
+
+---
+
+## M9–M12 完整 UI（2026-11-08，0.5.0）
+
+- [x] `@rsrsai/memlite@0.2.0`：`extra.revision` + `update/attach/forget` 条件写 + 外部文件签名刷新；5 例条件写测试
+- [x] `src/memory-write-service.ts`：remember/update/attach/forget 统一读回回执、operationId 幂等、稳定错误码
+- [x] 8 条新路由：`status/remember/update/attach/forget/recall-feedback/sync/reembed`；冲突 409 + `STALE_VERSION`
+- [x] 四视图：本次对话/全部记忆/因果树/状态；本次对话逐条解释与实际注入原文
+- [x] 存入/编辑/续写/改挂/忘记；冲突草稿保留；替换/清除父条；忘记标题确认
+- [x] 全部记忆响应式列表—详情；因果树围绕检索/定位/改挂；状态页库/检索/同步/Obsidian/回执
+- [x] 反馈按会话账本记录，不自动调权；同步/回填单任务互斥；诊断摘要脱敏
+- [x] 组件拆分 `memory-editor/memory-receipt/memory-status-view/memory-ui`，共享主题变量
+- [x] 本地预览 `preview/`：真实浏览器验证四视图、存入/编辑/改挂/忘记/同步、320px 无横向溢出
+- [x] `pnpm typecheck` / `pnpm test`（197 例）/ `pnpm build` 全绿
+- [x] README/CHANGELOG/contract/integration/plan 更新
+- [ ] 聊天回复内嵌折叠条：宿主无稳定 reply-action slot，未挂载（不伪造宿主挂载点）
+- [ ] Desktop 载体人工复验（Web/Desktop 共用 bundle，本地预览覆盖交互）

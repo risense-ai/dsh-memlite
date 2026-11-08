@@ -1,8 +1,8 @@
 {
   "name": "@rsrsai/dsh-memlite",
   "packageManager": "pnpm@9.15.0",
-  "version": "0.4.0",
-  "description": "DSH plugin: persistent local memory powered by @rsrsai/memlite (respire-aligned prompt/recall/wrap-up logic; JSONL causal tree, git sync, data-compatible with Rust memlite; Web GUI settings page and read-only memory browser).",
+  "version": "0.5.0",
+  "description": "DSH plugin: persistent local memory powered by @rsrsai/memlite (respire-aligned prompt/recall/wrap-up logic; JSONL causal tree, git sync, data-compatible with Rust memlite; four-view memory browser with conditional writes, receipts and status).",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -31,7 +31,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "preview": "node scripts/build-preview.mjs"
   },
   "dsh": {
     "bundle": {
@@ -71,7 +72,7 @@
   "dependencies": {
     "@deepseek-ai/cordis": "~4.1.0",
     "@deepseek-ai/schemastery": "~3.19.0",
-    "@rsrsai/memlite": "^0.1.0",
+    "@rsrsai/memlite": "^0.2.0",
     "@rsrsai/memlite-obsidian": "^0.1.0"
   },
   "devDependencies": {
@@ -84,5 +85,10 @@
     "tsup": "^8.3.0",
     "typescript": "^5.7.0",
     "vitest": "^2.1.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "@rsrsai/memlite": "0.2.0"
+    }
   }
 }

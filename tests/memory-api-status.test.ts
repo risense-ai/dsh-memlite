@@ -87,3 +87,74 @@ describe('memory api 禁用态判别', () => {
     expect(calls[0]?.init?.credentials).toBe('include')
   })
 })
+
+describe('memory api 写回执与状态', () => {
+  const receipt = {
+    operationId: 'op-0000-4000-8000-000000000000',
+    kind: 'update',
+    status: 'conflict',
+    id: 'mem-1',
+    title: '记忆一',
+    verified: false,
+    embedded: 'not-applicable',
+    code: 'STALE_VERSION',
+    timestamp: 1_700_000_000,
+    revision: 2,
+    current: {
+      id: 'mem-1',
+      title: '记忆一',
+      content: '当前正文',
+      truncated: false,
+      tags: [],
+      project: 'p',
+      ts: 1_700_000_000,
+      importance: 'important',
+      kind: 'Context',
+      revision: 2,
+      parentId: '',
+      childCount: 0,
+      leaf: true,
+    },
+  }
+
+  it('409 + receipt 时 write 返回结构化回执而不是抛错', async () => {
+    const api = createMemoryApi(
+      fakeFetch({
+        status: 409,
+        body: { ok: false, error: '版本冲突', code: 'STALE_VERSION', receipt },
+      }),
+    )
+    const result = await api.update({
+      operationId: receipt.operationId,
+      id: 'mem-1',
+      expectedRevision: 1,
+      content: '草稿',
+    })
+    expect(result.status).toBe('conflict')
+    expect(result.current?.revision).toBe(2)
+    expect(result.code).toBe('STALE_VERSION')
+  })
+
+  it('status 响应解析白名单字段', async () => {
+    const api = createMemoryApi(
+      fakeFetch({
+        status: 200,
+        body: {
+          ok: true,
+          data: {
+            engine: 2,
+            library: { enabled: true, records: 3, badLines: 1, vectors: 0, dataScope: 'project', files: 1 },
+            search: { backend: 'bm25', embeddingProvider: 'none', embeddingConfigured: false, fallbacks: 0 },
+            sync: { available: true, hasRemote: true, dirty: false, verified: false, localSha: 'abc123' },
+            obsidian: { state: 'unchecked' },
+            receipts: [receipt],
+          },
+        },
+      }),
+    )
+    const status = await api.status({ sessionId: 's' })
+    expect(status.library.records).toBe(3)
+    expect(status.sync.verified).toBe(false)
+    expect(status.receipts[0]?.status).toBe('conflict')
+  })
+})

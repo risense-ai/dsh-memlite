@@ -19,8 +19,13 @@
 | **M8a** | **记忆浏览 MVP** | **2 天** | **✅ 已完成（2026-11-08）** | 右侧 Memory 页签 + 全部记忆 + 搜索筛选 + 详情（只读） |
 | **M8b** | **因果树浏览** | **1 天** | **✅ 已完成（2026-11-08）** | 可折叠树逐层加载 + 因果邻居 + 链跳转（只读） |
 | **M8c** | **会话召回与验收** | **2 天** | **✅ 已完成（2026-11-08，真机 UI 验收通过）** | 本次对话命中 + 注入状态 + 会话隔离 + 5 只读路由 |
+| **M9a** | **条件写与共享写服务** | **3 天** | **✅ 已完成（2026-11-08，0.5.0）** | `@rsrsai/memlite@0.2.0` revision 条件写 + 统一回执 + operationId 幂等 |
+| **M9b** | **写入闭环与全部/因果增强** | **4 天** | **✅ 已完成（2026-11-08，0.5.0）** | 存入/编辑/续写/改挂/忘记；列表—详情两栏；围绕检索/定位/改挂 |
+| **M10** | **召回解释、反馈与聊天轻入口** | **3 天** | **✅ 已完成（右侧入口；聊天内嵌因宿主无 slot 未挂载）** | 实际注入原文、阈值/预算解释、好/坏反馈 |
+| **M11** | **状态、同步、Obsidian 与设置收口** | **4 天** | **✅ 已完成（2026-11-08，0.5.0）** | 第四视图、同步四字段、reembed、结构化 Obsidian 报告 |
+| **M12** | **可访问性、真机验收、文档与发布** | **3 天** | **✅ 已完成（2026-11-08，0.5.0）** | 组件拆分、320px/桌面浏览器验证、197 例测试、文档与发布 |
 
-M7（自动捕获 autoCapture）放到下一阶段，**不在 0.1.0 范围**。M8（聊天记忆浏览器）M8a–M8c 已实现（0.4.0，只读）；设计见 [proposal.md §十四](./proposal.md#十四聊天记忆浏览器m8-设计2026-11-08)，实现契约与验收对照见 [m8-contract.md](./m8-contract.md)。
+M7（自动捕获 autoCapture）放到下一阶段，**不在 0.1.0 范围**。M8（聊天记忆浏览器）M8a–M8c 已实现（0.4.0，只读）；M9–M12 已实现（0.5.0，写入闭环/解释/状态）；设计见 [proposal.md §十四](./proposal.md#十四聊天记忆浏览器m8-设计2026-11-08) 与 [ui-complete-plan.md](./ui-complete-plan.md)，实现契约与验收对照见 [m8-contract.md](./m8-contract.md)。
 
 **说明**：原 M5（文档+发布）顺延为 M6。Obsidian 整合作为 M5 提前到发布前——让用户开箱即可把已有 vault 转成本插件的记忆库，**这是拉新入口**。
 
@@ -326,11 +331,58 @@ memlite-obsidian 的 `importVault`/`exportVault` 内部会 open/close 自己的 
 - [x] 真机验收（DSH Web 0.2.2-alpha.2 隔离实例 + headless Chrome）：面板注册、Guide 入口、三视图、下拉/空态、召回账本注入与刷新、5 条路由 200、时间戳、窄栏截图；Desktop 未覆盖（与 Web 同 bundle）
 - [x] 更新 README、CHANGELOG、`docs/m8-contract.md` 与 `docs/plan-progress.md`；发布单列为后续动作，不随实现自动执行
 
-### M8d 写操作（后续，不在本里程碑）
+### M8d 写操作（由 M9b 承接，已完成）
 
-- [ ] 编辑、删除、改挂、手动存入分别设计草稿、二次确认、敏感闸和读回回执
-- [ ] 所有写操作经 Memlite 主类，禁止浏览器直接改文件；处理并发修改和失败可恢复
-- [ ] 明确成功/更新/待确认/跳过/部分完成/失败状态，不把候选写入当已保存
+- [x] 编辑、删除、改挂、手动存入分别设计草稿、二次确认、敏感闸和读回回执（见 M9b）
+- [x] 所有写操作经 Memlite 主类，禁止浏览器直接改文件；并发修改返回 409 并保留草稿
+- [x] 明确 saved/saved-degraded/skipped/rejected/conflict/failed/unconfirmed 状态，不把候选写入当已保存
+
+---
+
+## M9–M12 完整 UI（2026-11-08，0.5.0）
+
+详细交互与安全规格见 [ui-complete-plan.md](./ui-complete-plan.md)；实现契约见 [m8-contract.md](./m8-contract.md)。
+
+### M9a 条件写与共享写服务
+
+- [x] `@rsrsai/memlite@0.2.0`：`extra.revision`；`update/attach/forget` 接受 `{expectedRevision}`；
+      检查与 JSONL 追加同一同步段；条件写前检测外部文件签名并重载；`StaleVersionError` 带当前 revision
+- [x] `src/memory-write-service.ts`：`remember/update/attach/forget` 统一读回与回执；operationId 幂等；
+      敏感闸/父条不存在/不存在映射稳定错误码
+- [x] `WriteReceiptStore`：内存最多 200 条、按会话/agent 过滤、重载清空
+- [x] 宿主 spike：确认无稳定回复操作栏 slot；聊天内嵌入口降级为右侧入口并记录阻塞
+
+### M9b 写入闭环
+
+- [x] 8 条写/状态路由：`status/remember/update/attach/forget/recall-feedback/sync/reembed`
+- [x] 前端存入/编辑/续写/改挂/忘记；冲突草稿保留、重载当前版本、复制草稿
+- [x] 全部记忆响应式列表—详情；窄栏堆叠，宽栏 280–320px + 自适应详情
+- [x] 因果树围绕检索、定位当前节点、改挂入口
+- [x] 顶栏真实状态、存入入口、刷新；移除“只读”标签
+
+### M10 召回解释与反馈
+
+- [x] 账本补 `injectedText/threshold/budgetChars/usedChars/limit/elapsedMs`
+- [x] 逐条规则解释；零命中/跳过/降级/失败文案
+- [x] 有帮助/不相关；未评价态、会话隔离、重载清空；明确不自动调权
+- [ ] 聊天回复折叠条与存入按钮（宿主无稳定 slot，未挂载；不伪造宿主挂载点）
+- [x] pre-step 不新增模型请求；账本读写不阻塞当前轮
+
+### M11 状态与互通
+
+- [x] 安全 status 投影：库/坏行/向量、检索/嵌入、同步可用/未配置/未验证/脏、Obsidian 最近操作
+- [x] 同步按钮展示 committed/local/remote/verified；远程与凭据不泄露
+- [x] reembed 计数与失败数；无百分比、无假进度；单任务互斥
+- [x] Obsidian 保留 `text`，新增不含路径的计数型 `report`
+- [x] 设置页说明记忆浏览器入口；诊断摘要脱敏可复制
+
+### M12 验收与发布
+
+- [x] 组件拆分：`memory-editor/memory-receipt/memory-status-view/memory-ui`
+- [x] 320px 与桌面宽度真实浏览器交互验证（存入/编辑/改挂/忘记/同步/树展开）
+- [x] `pnpm typecheck` / `pnpm test`（197 例）/ `pnpm build` 全绿
+- [x] README、CHANGELOG、contract、integration、plan-progress 更新
+- [x] 发布 0.5.0（npm + GitHub release；Pages 无 site 改动）
 
 ---
 

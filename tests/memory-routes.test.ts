@@ -128,7 +128,7 @@ describe('记忆浏览器路由注册', () => {
   it('注册五条 buffered POST 路由，路径与契约一致', async () => {
     const { host } = await setup()
     const paths = Object.values(MEMORY_BROWSER_PATHS).map((path) => `/${path}`)
-    expect(paths).toHaveLength(5)
+    expect(paths).toHaveLength(13)
     for (const path of paths) {
       const route = host.connection.routes.get(path)
       expect(route, path).toBeDefined()
@@ -538,6 +538,11 @@ describe('筛选语义回归（verifier 发现）', () => {
       getGeneration: () => 1,
       isEnabled: () => true,
       ledger: new RecallLedger(),
+      write: {} as never,
+      syncActivity: { isVerified: false } as never,
+      status: async () => {
+        throw new Error('unused')
+      },
       log: () => {},
     })
     const response = await handler(

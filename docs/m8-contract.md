@@ -1,16 +1,19 @@
-# 聊天记忆浏览器（M8）实现契约
+# 聊天记忆浏览器（M8–M11）实现契约
 
 > 对应 [proposal.md §十四](./proposal.md#十四聊天记忆浏览器m8-设计2026-11-08) 与
 > [plan.md §M8](./plan.md#m8-聊天记忆浏览器5-天后续阶段)。
 > 权威类型见 `src/browser-contract.ts`（本文只补行为约定）。宿主版本：**DSH 0.2.2-alpha.2**。
 
-## 一、范围（首版只读）
+## 一、范围
 
 - M8a：右侧 Memory 页签、全部记忆、搜索/筛选、游标分页、详情、复制。
 - M8b：可折叠因果树（逐层加载）、因果邻居与完整链跳转。
 - M8c：本次对话召回视图、注入状态、会话隔离、错误/空/中止态。
-- 不做：编辑/删除/改挂/手动存入（M8d）；不做独立管理后台；不新增模型请求；
-  不持久化检索历史；不向 UI 暴露向量、凭据、querylog、文件路径。
+- M9a/M9b（0.5.0）：`revision` 条件写、统一回执、存入/编辑/续写/改挂/忘记、响应式列表—详情。
+- M10（0.5.0）：实际注入原文、阈值/预算逐条解释、显式反馈；聊天回复内嵌入口因宿主无稳定 slot 未挂载。
+- M11（0.5.0）：状态视图、同步四字段、reembed 计数、Obsidian 结构化 report。
+- 不做：独立管理后台、pending 审批中心、撤销删除、永久审计、自动反馈调权、力导向图；
+  不新增模型请求；不持久化检索历史；不向 UI 暴露向量、凭据、querylog、完整路径。
 
 ## 二、浏览器注册（`src/client/index.tsx`，由 Lead 集成）
 
@@ -65,8 +68,19 @@ ctx.slots.inject('sidebar.right.pane.tab', () =>
 | `api/memlite/browser/show` | `MemoryShowRequest` | `mem.show(id)` + `mem.chain(id, depth)` | 正文 20k 字符，链深 ≤ 8/节点 ≤ 200 |
 | `api/memlite/browser/tree` | `MemoryTreeRequest` | 内存投影（`parent_id` 逐层） | limit 1..200，单层 |
 | `api/memlite/browser/session-recalls` | `MemorySessionRecallsRequest` | 插件内召回账本 | limit 1..100，账本有界 |
+| `api/memlite/browser/status` | `{sessionId?,agentId?}` | `mem.status()` + `syncStatus()` + 内存回执/Obsidian 状态 | 回执 ≤50 |
+| `api/memlite/browser/remember` | `MemoryRememberRequest` | `Memlite.remember` + 读回 | content 20k 字符；父存在 |
+| `api/memlite/browser/update` | `MemoryUpdateRequest` | `expectedRevision` 条件写 + 读回 | 冲突 409 |
+| `api/memlite/browser/attach` | `MemoryAttachRequest` | 条件改挂 + 防环 + 父链读回 | 冲突 409 |
+| `api/memlite/browser/forget` | `MemoryForgetRequest` | 标题确认 + 条件删除 + 读回不存在 | 冲突 409 |
+| `api/memlite/browser/recall-feedback` | `MemoryRecallFeedbackRequest` | 会话账本 feedback | 只接受账本已有 id |
+| `api/memlite/browser/sync` | `{operationId?}` | `mem.sync()` | 单任务互斥；返回四字段 |
+| `api/memlite/browser/reembed` | `{operationId?}` | `mem.reembed()` | 单任务互斥；只回计数 |
 
-- 响应外壳 `MemoryApiResponse<T>`：`{ok:true,data}` / `{ok:false,error,disabled?}`。
+- 响应外壳 `MemoryApiResponse<T>`：`{ok:true,data}` / `{ok:false,error,disabled?,code?,receipt?}`。
+- 写操作：成功 200；冲突 409 + `code=STALE_VERSION` + 当前安全投影；拒绝 400；失败/未确认 500。
+- 写回执 `MemoryWriteReceipt`：operationId 幂等，状态 saved/saved-degraded/skipped/partial/rejected/conflict/failed/unconfirmed；
+  成功后读回（id/标题/正文、父链或删除后不存在）；不虚构 pending。
 - `enabled=false`：HTTP 503 + `{ok:false,error:'memlite 已禁用',disabled:true}`。
 - `engine`：`MemoryRuntime` 的代次（结构性配置重建引擎后 +1），客户端据此清理失效详情。
 - 不读 JSONL、不碰 `mem.store` 内部文件；所有过滤/投影在 Host 内存里完成。
@@ -74,7 +88,8 @@ ctx.slots.inject('sidebar.right.pane.tab', () =>
 
 ## 四、召回账本（`src/recall-ledger.ts` + `src/index.ts`）
 
-- 结构：`MemorySessionRecall`（见 contract）；按 `sessionId`（取不到时按 `agentId` 明示降级）
+- 结构：`MemorySessionRecall`（见 contract，含 injectedText/threshold/budgetChars/usedChars/limit/elapsedMs/feedback）；
+  按 `sessionId`（取不到时按 `agentId` 明示降级）
   分桶，内存常驻、插件重载即清空。
 - 注入状态与 `selectRecallTitles()` **同一份结果**：该函数同时返回渲染文本与
   `hits[].exclusion`（`threshold`/`budget`），`index.ts` 在 `decision.messages` 成功追加
@@ -129,7 +144,7 @@ export interface MemoryPanelProps {
 
 ## 六、测试要求
 
-- `tests/memory-routes.test.ts`（Lead）：路由注册（5 条）、list 筛选/分页/上限、
+- `tests/memory-routes.test.ts`：只读路由注册（5 条）、list 筛选/分页/上限、
   search、show（含 deleted）、tree 逐层与上限、session-recalls 隔离/上限/注入状态、
   入参守卫、禁用 503、响应不含 content（列表）与敏感字段。
 - `tests/recall-ledger.test.ts`（Lead）：容量、LRU、drop、注入状态与 render 一致。

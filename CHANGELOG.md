@@ -1,5 +1,55 @@
 # Changelog
 
+## 0.5.0 (2026-11-08)
+
+完整 UI 闭环：在只读记忆浏览器之上增加统一写入、召回解释、状态视图与条件写版本守卫。
+依赖 `@rsrsai/memlite@^0.2.0`（条件写 / revision）。
+
+### 新能力
+
+- **四视图**：本次对话 / 全部记忆 / 因果树 / 状态。顶栏显示真实可用状态，可直接存入与刷新。
+- **写入闭环**（`src/memory-write-service.ts` + 路由）：
+  - 存入、编辑、基于此续写、改挂因果、忘记记忆；保存后统一读回（id/标题/正文或父链/不存在）。
+  - 编辑/改挂/忘记带 `expectedRevision`；冲突返回 409 + `STALE_VERSION` + 当前安全投影，草稿保留。
+  - 回执按 operationId 幂等，内存最多 200 条；重载清空，不冒充永久审计。
+  - 敏感闸拒绝只报类别，不回显秘密；嵌入未启用/待回填与 JSONL 已保存分开显示。
+- **召回解释与反馈**：
+  - 账本补充实际注入标题块、当时阈值/预算/使用字符/耗时；逐条显示 threshold/budget 原因。
+  - 有帮助/不相关反馈只按会话账本记录，明确不自动调权、重载清空。
+- **状态视图**：
+  - 本地库条数/坏行/向量、检索后端与嵌入档、git 同步（可用/未配置/未验证/脏）、
+    Obsidian 最近操作状态、当前会话近期回执。
+  - 立即同步（四字段核验）、显式回填向量（无百分比、无假进度）、复制脱敏诊断摘要。
+  - 不返回完整路径、remote URL、凭据、正文或向量。
+- **全部记忆**：列表—详情响应式两栏（窄侧栏自动堆叠），详情提供编辑/续写/改挂/围绕检索/
+  复制/忘记；技术 id 与 revision 保留在详情。
+- **因果树**：围绕选中记忆检索、定位当前节点、改挂入口；继续逐层加载与断链/环提示。
+
+### 接口与数据
+
+- `@rsrsai/memlite` 0.2.0：`extra.revision` 版本字段；`update/attach/forget` 接受 `{expectedRevision}`；
+  条件检查与 JSONL 追加在同一同步段完成；条件写前检测外部文件签名并重载，跨实例旧写入触发冲突。
+- 13 条 `api/memlite/browser/*` 路由：原 5 条只读 + `status`、`remember`、`update`、`attach`、
+  `forget`、`recall-feedback`、`sync`、`reembed`。
+- `MemorySummaryItem`/`MemoryDetail` 增加 `revision`；详情增加 `parentId`；
+  `MemorySessionRecall` 增加 `injectedText/threshold/budgetChars/usedChars/limit/elapsedMs/feedback`。
+- Obsidian 三条路由保留 `text`，新增结构化的计数型 `report`（不含路径）。
+
+### 安全与边界
+
+- 写路由复用宿主认证/信任栅栏；64 KiB 请求体上限；operationId/标题/正文/标签/项目白名单校验。
+- 浏览器不直写 JSONL；所有写入经 Memlite 主类与条件写。
+- 不虚构能力：没有 pending 审批域、撤销删除、永久审计、自动反馈调权；聊天回复内嵌入口因
+  宿主无稳定回复操作栏 slot，本轮只保留右侧入口（已在文档记录阻塞）。
+- 正文仍只进 `<pre>`/textarea，不执行记忆中的 HTML 或命令。
+
+### 质量
+
+- 新增 `tests/memory-write-routes.test.ts`（9 例）与 `@rsrsai/memlite` 条件写 5 例。
+- 客户端新增状态/回执/编辑器 SSR 覆盖；更新路由总数与字段白名单断言。
+- `pnpm typecheck` / `pnpm test`（197 例）/ `pnpm build` 全绿；
+  本地预览（`preview/`）在 320px 与桌面宽度做真实浏览器交互验证。
+
 ## 0.4.0 (2026-11-08)
 
 M8 聊天记忆浏览器（只读）：会话右侧 **Memory 页签**，三视图 + 5 条只读路由 + 会话召回账本。

@@ -24,6 +24,8 @@ import { RULES, SKIP_PREFIX, SKILL_PREFIX, STORE_PREFIX, WRAP_UP, id8, titleOf }
 import { selectRecallTitles } from './render'
 import { RecallLedger, type RecallLedgerDraft } from './recall-ledger'
 import { registerMemoryRoutes } from './memory-routes'
+import { MemoryWriteService, WriteReceiptStore } from './memory-write-service'
+import { ObsidianActivity, SyncActivity, buildMemoryStatus } from './memory-status'
 import { Config, readConfig, resolveConfigRef, type ConfigRef, type PluginConfig } from './schema'
 import { createObsidianHandlers, registerObsidianRoutes, type ConnectionService } from './obsidian'
 import {
@@ -109,6 +111,17 @@ export function apply(
   const disposers: Array<() => void> = []
   /** M8c：会话召回账本（有界、内存、按会话隔离；不保存提示词）。 */
   const ledger = new RecallLedger()
+  /** M9b/M11：写入回执与状态投影。 */
+  const receipts = new WriteReceiptStore()
+  const writeService = new MemoryWriteService(
+    {
+      getMem: () => runtime.mem,
+      log: (message) => context.logger?.warn?.(message),
+    },
+    receipts,
+  )
+  const obsidianActivity = new ObsidianActivity()
+  const syncActivity = new SyncActivity()
 
   // 1. 静态规则：与是否召回命中无关，恒定注入（volatile 关闭时按次返回空串）。
   context.inject(['systemPrompt'], (scoped) => {
@@ -142,7 +155,7 @@ export function apply(
   context.inject(['connection'], (scoped) => {
     const connection = (scoped as unknown as Scoped).connection as ConnectionService | undefined
     if (!connection) return
-    const handlers = createObsidianHandlers(() => runtime.mem)
+    const handlers = createObsidianHandlers(() => runtime.mem, obsidianActivity)
     disposers.push(...registerObsidianRoutes(connection, handlers))
     disposers.push(
       ...registerMemoryRoutes(connection, {
@@ -150,6 +163,20 @@ export function apply(
         getGeneration: () => runtime.generation,
         isEnabled: enabled,
         ledger,
+        write: writeService,
+        syncActivity,
+        status: (scope) =>
+          buildMemoryStatus(
+            {
+              getMem: () => runtime.mem,
+              getGeneration: () => runtime.generation,
+              isEnabled: enabled,
+              receipts,
+              obsidian: obsidianActivity,
+              syncActivity,
+            },
+            scope,
+          ),
         log: (message) => context.logger?.warn?.(message),
       }),
     )
@@ -186,6 +213,12 @@ export function apply(
       backend?: string
       fallback?: string
       hits?: RecallLedgerDraft['hits']
+      injectedText?: string
+      threshold?: number
+      budgetChars?: number
+      usedChars?: number
+      limit?: number
+      elapsedMs?: number
     }): void => {
       drafts.push({
         sessionId,
@@ -197,6 +230,12 @@ export function apply(
         status: params.status,
         ...(params.skipReason !== undefined ? { skipReason: params.skipReason } : {}),
         hits: params.hits ?? [],
+        ...(params.injectedText !== undefined ? { injectedText: params.injectedText } : {}),
+        ...(params.threshold !== undefined ? { threshold: params.threshold } : {}),
+        ...(params.budgetChars !== undefined ? { budgetChars: params.budgetChars } : {}),
+        ...(params.usedChars !== undefined ? { usedChars: params.usedChars } : {}),
+        ...(params.limit !== undefined ? { limit: params.limit } : {}),
+        ...(params.elapsedMs !== undefined ? { elapsedMs: params.elapsedMs } : {}),
       })
     }
     const flushLedger = (): void => {
@@ -314,6 +353,12 @@ export function apply(
           backend: String(result.backend ?? ''),
           fallback: String(result.fallback ?? ''),
           hits: selection.hits,
+          injectedText: selection.text,
+          threshold: selection.threshold,
+          budgetChars: selection.budgetChars,
+          usedChars: selection.usedChars,
+          limit: cfg.recallLimit,
+          elapsedMs: result.ms,
         })
       } catch (error) {
         if (aborted()) return decision
@@ -370,6 +415,7 @@ export function apply(
   return () => {
     runtime.dispose()
     ledger.clear()
+    receipts.clear()
     for (const d of disposers.splice(0)) d()
   }
 }

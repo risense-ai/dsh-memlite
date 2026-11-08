@@ -2,7 +2,7 @@
 
 const zh = {
   summary: '持久本地记忆：召回、存储与嵌入设置',
-  intro: '这里的修改只影响本 profile，保存后写入 cordis.patch.yml；召回与注入参数对本会话即刻生效。',
+  intro: '这里的修改只影响本 profile，保存后写入 cordis.patch.yml；召回与注入参数对本会话即刻生效。记忆浏览、存入与修正位于会话右侧「记忆」页签。',
   loading: '正在读取 memlite 配置…',
   unavailable: '当前配置不可编辑：插件条目未运行，或配置 schema 没有 volatile 字段。',
   readOnly: '这个部署的配置是只读的。',
@@ -80,7 +80,7 @@ const zh = {
 
 const en: Record<keyof typeof zh, string> = {
   summary: 'Persistent local memory: recall, storage, and embedding settings',
-  intro: 'Changes apply to this profile only and persist to cordis.patch.yml on save; recall and injection parameters take effect in this session.',
+  intro: 'Changes apply to this profile only and persist to cordis.patch.yml on save; recall and injection parameters take effect in this session. Browse, save, and correct memories in the Memory tab on the right sidebar.',
   loading: 'Reading memlite configuration…',
   unavailable: 'Configuration is not editable: the plugin row is not running, or its schema exposes no volatile fields.',
   readOnly: 'This deployment stores settings read-only.',

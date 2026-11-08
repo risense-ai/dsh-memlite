@@ -14,10 +14,16 @@ import {
   type MemoryApiResponse,
   type MemoryImportance,
   type MemoryListResponse,
+  type MemoryRecallFeedbackResponse,
+  type MemoryReembedResponse,
   type MemorySearchResponse,
   type MemorySessionRecallsResponse,
   type MemoryShowResponse,
+  type MemoryStatusResponse,
+  type MemorySyncResponse,
   type MemoryTreeResponse,
+  type MemoryWriteReceipt,
+  type MemoryWriteScope,
 } from './browser-contract'
 import {
   MAX_LIST_LIMIT,
@@ -31,6 +37,8 @@ import {
 } from './browse'
 import { HttpError, json, optionalInteger, optionalString, readJson } from './http'
 import type { RecallLedger } from './recall-ledger'
+import type { MemoryWriteService } from './memory-write-service'
+import type { SyncActivity } from './memory-status'
 import type { ConnectionService, FetchRoute } from './obsidian'
 
 /** 浏览器请求体上限（与 Obsidian 路由一致）。 */
@@ -43,8 +51,14 @@ export interface MemoryRouteDeps {
   getGeneration(): number
   /** 总开关；关闭时路由统一回 503 + disabled（不读库）。 */
   isEnabled(): boolean
-  /** 会话召回账本（M8c）。 */
+  /** 会话召回账本（M8c/M10）。 */
   ledger: RecallLedger
+  /** 写服务（M9b）。 */
+  write: MemoryWriteService
+  /** 状态投影（M11）。 */
+  status(scope: MemoryWriteScope): Promise<MemoryStatusResponse>
+  /** 最近一次显式同步的核验状态。 */
+  syncActivity: SyncActivity
   /** 宿主日志（未预期异常只记这里，不回给浏览器）。 */
   log?(message: string): void
 }
@@ -101,6 +115,72 @@ function optionalImportance(value: unknown): MemoryImportance | undefined {
     throw new HttpError(400, 'importance 必须是 important/trivial')
   }
   return value
+}
+
+const MAX_OPERATION_ID = 100
+const MAX_CONTENT_CHARS = 20_000
+const MAX_TAGS = 10
+const MAX_TAG_CHARS = 80
+
+function requireOperationId(value: unknown): string {
+  const text = optionalString(value, 'operationId', MAX_OPERATION_ID)
+  if (text === undefined || !/^[A-Za-z0-9._:-]{8,100}$/u.test(text)) {
+    throw new HttpError(400, 'operationId 格式无效')
+  }
+  return text
+}
+
+function requireRevision(value: unknown, field = 'expectedRevision'): number {
+  const revision = optionalInteger(value, field)
+  if (revision === undefined || revision < 0) {
+    throw new HttpError(400, `${field} 必须是非负整数`)
+  }
+  return revision
+}
+
+function requireContent(value: unknown): string {
+  if (typeof value !== 'string' || value.trim() === '') throw new HttpError(400, 'content 不能为空')
+  if (value.length > MAX_CONTENT_CHARS) throw new HttpError(413, 'content 过长')
+  return value
+}
+
+function optionalTags(value: unknown): string[] | undefined {
+  if (value === undefined || value === null) return undefined
+  if (!Array.isArray(value)) throw new HttpError(400, 'tags 必须是数组')
+  if (value.length > MAX_TAGS) throw new HttpError(400, `tags 最多 ${MAX_TAGS} 个`)
+  return value.map((tag) => {
+    if (typeof tag !== 'string') throw new HttpError(400, 'tags 必须是字符串数组')
+    const text = tag.trim()
+    if (text === '') throw new HttpError(400, 'tags 不能为空串')
+    if (text.length > MAX_TAG_CHARS) throw new HttpError(400, 'tag 过长')
+    return text
+  })
+}
+
+function optionalScope(body: Record<string, unknown>): MemoryWriteScope {
+  const sessionId = optionalString(body['sessionId'], 'sessionId', 200)
+  const agentId = optionalString(body['agentId'], 'agentId', 200)
+  return {
+    ...(sessionId !== undefined ? { sessionId } : {}),
+    ...(agentId !== undefined ? { agentId } : {}),
+  }
+}
+
+/** 写操作统一出口：成功 200；冲突 409；拒绝 400；失败/未确认 500。 */
+function writeResponse(receipt: MemoryWriteReceipt): Response {
+  if (receipt.status === 'conflict') {
+    return json(
+      { ok: false, error: receipt.message ?? '版本冲突', code: receipt.code ?? 'STALE_VERSION', receipt },
+      409,
+    )
+  }
+  if (receipt.status === 'rejected') {
+    return json({ ok: false, error: receipt.message ?? '请求被拒绝', code: receipt.code ?? 'REJECTED', receipt }, 400)
+  }
+  if (receipt.status === 'failed' || receipt.status === 'unconfirmed') {
+    return json({ ok: false, error: receipt.message ?? '操作未完成', code: receipt.code ?? 'ENGINE', receipt }, 500)
+  }
+  return json({ ok: true, data: { receipt } })
 }
 
 const MAX_ID_CHARS = 200
@@ -207,7 +287,184 @@ export function createMemorySessionRecallsHandler(deps: MemoryRouteDeps): Handle
   })
 }
 
-/** 五条精确路由（host 侧带前导斜杠，浏览器侧用 document-relative 路径）。 */
+/** status：库/检索/同步/Obsidian/回执安全投影。 */
+export function createMemoryStatusHandler(deps: MemoryRouteDeps): Handler {
+  return route(deps, async (body) => {
+    const data = await deps.status(optionalScope(body))
+    return success(data)
+  })
+}
+
+/** remember：新建 + 读回；operationId 幂等。 */
+export function createMemoryRememberHandler(deps: MemoryRouteDeps): Handler {
+  return route(deps, async (body) => {
+    const operationId = requireOperationId(body['operationId'])
+    const content = requireContent(body['content'])
+    const title = optionalString(body['title'], 'title', 200) ?? ''
+    const tags = optionalTags(body['tags'])
+    const project = optionalString(body['project'], 'project', 100)
+    const importance = optionalImportance(body['importance'])
+    const parentId = optionalString(body['parentId'], 'parentId', MAX_ID_CHARS)
+    const response = await deps.write.remember(
+      {
+        operationId,
+        title,
+        content,
+        ...(tags !== undefined ? { tags } : {}),
+        ...(project !== undefined ? { project } : {}),
+        ...(importance === 'important' || importance === 'trivial' ? { importance } : {}),
+        ...(parentId !== undefined ? { parentId } : {}),
+      },
+      optionalScope(body),
+    )
+    return writeResponse(response.receipt)
+  })
+}
+
+/** update：编辑标题/正文/标签/重要性；expectedRevision 条件写。 */
+export function createMemoryUpdateHandler(deps: MemoryRouteDeps): Handler {
+  return route(deps, async (body) => {
+    const operationId = requireOperationId(body['operationId'])
+    const id = requireText(body['id'], 'id', MAX_ID_CHARS)
+    const expectedRevision = requireRevision(body['expectedRevision'])
+    const title = optionalString(body['title'], 'title', 200)
+    const content = body['content'] === undefined ? undefined : requireContent(body['content'])
+    const tags = optionalTags(body['tags'])
+    const importance = 'importance' in body ? (optionalImportance(body['importance']) ?? '') : undefined
+    const response = await deps.write.update(
+      {
+        operationId,
+        id,
+        expectedRevision,
+        ...(title !== undefined ? { title } : {}),
+        ...(content !== undefined ? { content } : {}),
+        ...(tags !== undefined ? { tags } : {}),
+        ...(importance !== undefined ? { importance } : {}),
+      },
+      optionalScope(body),
+    )
+    return writeResponse(response.receipt)
+  })
+}
+
+/** attach：改挂因果（空 parentId=升根）；expectedRevision 条件写。 */
+export function createMemoryAttachHandler(deps: MemoryRouteDeps): Handler {
+  return route(deps, (body) => {
+    const operationId = requireOperationId(body['operationId'])
+    const id = requireText(body['id'], 'id', MAX_ID_CHARS)
+    const expectedRevision = requireRevision(body['expectedRevision'])
+    const parentId = optionalString(body['parentId'], 'parentId', MAX_ID_CHARS) ?? ''
+    const response = deps.write.attach(
+      { operationId, id, expectedRevision, parentId },
+      optionalScope(body),
+    )
+    return writeResponse(response.receipt)
+  })
+}
+
+/** forget：确认标题 + 条件写；删除后读回不存在。 */
+export function createMemoryForgetHandler(deps: MemoryRouteDeps): Handler {
+  return route(deps, (body) => {
+    const operationId = requireOperationId(body['operationId'])
+    const id = requireText(body['id'], 'id', MAX_ID_CHARS)
+    const expectedRevision = requireRevision(body['expectedRevision'])
+    const confirmTitle = requireText(body['confirmTitle'], 'confirmTitle', 200)
+    const response = deps.write.forget(
+      { operationId, id, expectedRevision, confirmTitle },
+      optionalScope(body),
+    )
+    return writeResponse(response.receipt)
+  })
+}
+
+/** recall-feedback：只接受账本里已有的 id；不自动调权。 */
+export function createMemoryRecallFeedbackHandler(deps: MemoryRouteDeps): Handler {
+  return route(deps, (body) => {
+    const sessionId = optionalString(body['sessionId'], 'sessionId', 200)
+    const agentId = optionalString(body['agentId'], 'agentId', 200)
+    if (sessionId === undefined && agentId === undefined) {
+      throw new HttpError(400, 'sessionId 与 agentId 至少给一个')
+    }
+    const turn = requireRevision(body['turn'], 'turn')
+    const messageId = requireText(body['messageId'], 'messageId', MAX_ID_CHARS)
+    const memoryId = requireText(body['memoryId'], 'memoryId', MAX_ID_CHARS)
+    const feedback = body['feedback']
+    if (feedback !== 'helpful' && feedback !== 'irrelevant') {
+      throw new HttpError(400, 'feedback 必须是 helpful/irrelevant')
+    }
+    const updated = deps.ledger.setFeedback({
+      ...(sessionId !== undefined ? { sessionId } : {}),
+      ...(agentId !== undefined ? { agentId } : {}),
+      turn,
+      messageId,
+      memoryId,
+      feedback,
+    })
+    if (!updated) throw new HttpError(404, '反馈目标不存在或已过期')
+    const data: MemoryRecallFeedbackResponse = { updated, feedback }
+    return success(data)
+  })
+}
+
+/** 同一时刻只允许一个同步/回填任务。 */
+let syncBusy = false
+let reembedBusy = false
+
+/** sync：显式触发 git 同步；结果只给四字段。 */
+export function createMemorySyncHandler(deps: MemoryRouteDeps): Handler {
+  return route(deps, async () => {
+    if (syncBusy) throw new HttpError(409, '同步正在进行，请稍后再试')
+    syncBusy = true
+    try {
+      let report: Awaited<ReturnType<Memlite['sync']>>
+      try {
+        report = await deps.getMem().sync()
+      } catch (error) {
+        deps.log?.(`memlite: 同步失败: ${error instanceof Error ? error.message : String(error)}`)
+        throw new HttpError(400, '同步未完成：请检查 git 仓库与 origin 配置。')
+      }
+      deps.syncActivity.record(report.verified === true)
+      const data: MemorySyncResponse = {
+        committed: report.committed === true,
+        localSha: String(report.local_sha ?? '').slice(0, 12),
+        remoteSha: String(report.remote_sha ?? '').slice(0, 12),
+        verified: report.verified === true,
+      }
+      return success(data)
+    } finally {
+      syncBusy = false
+    }
+  })
+}
+
+/** reembed：回填缺失向量；只回计数，不回失败原文。 */
+export function createMemoryReembedHandler(deps: MemoryRouteDeps): Handler {
+  return route(deps, async () => {
+    if (reembedBusy) throw new HttpError(409, '回填正在进行，请稍后再试')
+    reembedBusy = true
+    try {
+      let result: Awaited<ReturnType<Memlite['reembed']>>
+      try {
+        result = await deps.getMem().reembed()
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('嵌入档未开启')) {
+          throw new HttpError(400, '嵌入档未启用')
+        }
+        throw error
+      }
+      const data: MemoryReembedResponse = {
+        total: result.total,
+        embedded: result.embedded,
+        failed: result.failed,
+      }
+      return success(data)
+    } finally {
+      reembedBusy = false
+    }
+  })
+}
+
+/** 精确路由（host 侧带前导斜杠，浏览器侧用 document-relative 路径）。 */
 export function memoryRoutes(deps: MemoryRouteDeps): FetchRoute[] {
   const register = (path: string, handler: Handler): FetchRoute => ({
     path: `/${path}`,
@@ -221,6 +478,14 @@ export function memoryRoutes(deps: MemoryRouteDeps): FetchRoute[] {
     register(MEMORY_BROWSER_PATHS.show, createMemoryShowHandler(deps)),
     register(MEMORY_BROWSER_PATHS.tree, createMemoryTreeHandler(deps)),
     register(MEMORY_BROWSER_PATHS.sessionRecalls, createMemorySessionRecallsHandler(deps)),
+    register(MEMORY_BROWSER_PATHS.status, createMemoryStatusHandler(deps)),
+    register(MEMORY_BROWSER_PATHS.remember, createMemoryRememberHandler(deps)),
+    register(MEMORY_BROWSER_PATHS.update, createMemoryUpdateHandler(deps)),
+    register(MEMORY_BROWSER_PATHS.attach, createMemoryAttachHandler(deps)),
+    register(MEMORY_BROWSER_PATHS.forget, createMemoryForgetHandler(deps)),
+    register(MEMORY_BROWSER_PATHS.feedback, createMemoryRecallFeedbackHandler(deps)),
+    register(MEMORY_BROWSER_PATHS.sync, createMemorySyncHandler(deps)),
+    register(MEMORY_BROWSER_PATHS.reembed, createMemoryReembedHandler(deps)),
   ]
 }
 

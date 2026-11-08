@@ -17,7 +17,9 @@ import type {
   MemoryImportance,
   MemorySessionRecall,
   MemoryShowResponse,
+  MemoryStatusResponse,
   MemorySummaryItem,
+  MemoryWriteReceipt,
 } from '../src/browser-contract'
 import {
   MemoryApiError,
@@ -41,6 +43,7 @@ import {
   type MemoryPanelState,
   type Translate,
 } from '../src/client/MemliteMemory'
+import { emptyEditorState } from '../src/client/memory-editor'
 import { MEMORY_LOCALE_NS, memoryLocales } from '../src/client/memory-locales'
 
 /* -------------------------------------------------------------------------- */
@@ -61,6 +64,7 @@ const SUMMARY: MemorySummaryItem = {
   ts: 1_700_000_000,
   importance: 'important',
   kind: 'fact',
+  revision: 0,
   childCount: 2,
   leaf: false,
 }
@@ -98,6 +102,8 @@ const SHOW_DATA: MemoryShowResponse = {
     ...SUMMARY,
     content: '第一行正文\n第二行正文',
     truncated: false,
+    revision: 0,
+    parentId: '',
   },
   ancestors: [{ id: 'anc-1', title: '祖先记忆' }],
   children: [{ id: 'child-1', title: '子条记忆', summary: '子条摘要' }],
@@ -509,6 +515,33 @@ function noopActions(overrides: Partial<MemoryPanelActions> = {}): MemoryPanelAc
     loadChild: () => {},
     copy: () => {},
     closeDetail: () => {},
+    feedback: () => {},
+    openEditor: () => {},
+    searchAround: () => {},
+    status: {
+      refresh: () => {},
+      sync: () => {},
+      reembed: () => {},
+      copyDiagnostics: () => {},
+      openReceipt: () => {},
+    },
+    editor: {
+      setTitle: () => {},
+      setContent: () => {},
+      setTags: () => {},
+      setProject: () => {},
+      setImportance: () => {},
+      setParentQuery: () => {},
+      setParent: () => {},
+      clearParent: () => {},
+      searchParent: () => {},
+      setConfirmTitle: () => {},
+      save: () => {},
+      cancel: () => {},
+      reloadConflict: () => {},
+      copyDraft: () => {},
+    },
+    dismissReceipt: () => {},
     ...overrides,
   }
 }
@@ -519,7 +552,9 @@ function panelState(overrides: Partial<MemoryPanelState> = {}): MemoryPanelState
     session: { status: 'loading' },
     all: emptyAllState(),
     tree: emptyTreeState(),
+    status: { status: 'loading' },
     detail: { status: 'idle' },
+    editor: emptyEditorState(),
     query: '',
     project: '',
     tag: '',
@@ -534,6 +569,27 @@ function renderView(
   translate: Translate = t,
 ): string {
   return renderToStaticMarkup(createElement(MemoryPanelView, { t: translate, state, actions }))
+}
+
+const STATUS_DATA: MemoryStatusResponse = {
+  engine: 3,
+  library: { enabled: true, records: 3, badLines: 0, vectors: 1, dataScope: 'project', files: 1 },
+  search: { backend: 'bm25', embeddingProvider: 'none', embeddingConfigured: false, fallbacks: 0 },
+  sync: { available: false, hasRemote: false, dirty: false, verified: false, localSha: '' },
+  obsidian: { state: 'unchecked' },
+  receipts: [],
+}
+
+const RECEIPT: MemoryWriteReceipt = {
+  operationId: 'op-0000-4000-8000-000000000000',
+  kind: 'remember',
+  status: 'saved',
+  id: 'mem-1',
+  title: '记忆一',
+  verified: true,
+  embedded: 'disabled',
+  timestamp: 1_700_000_000,
+  revision: 0,
 }
 
 function readyRecall(entries: MemorySessionRecall[]): MemoryPanelState {
@@ -576,6 +632,65 @@ describe('MemoryPanelView SSR：本次对话', () => {
     expect(renderView(panelState({ session: { status: 'disabled' } }))).toContain(
       'state.disabledTitle',
     )
+  })
+})
+
+describe('MemoryPanelView SSR：解释、状态、回执与编辑器', () => {
+  it('逐条解释使用阈值/预算快照，反馈按钮带已评价态', () => {
+    const entry = {
+      agentId: 'a',
+      turn: 4,
+      messageId: 'm4',
+      timestamp: 1_700_000_000,
+      backend: 'bm25',
+      fallback: '',
+      status: 'ok' as const,
+      threshold: 0.3,
+      budgetChars: 1500,
+      usedChars: 120,
+      limit: 5,
+      elapsedMs: 4,
+      injectedText: '【memlite · 自动召回】- [5.47] 记忆一',
+      feedback: { 'mem-1': 'helpful' as const },
+      hits: [
+        { id: 'mem-1', score: 5.47, title: '记忆一', injected: true, exists: true },
+        { id: 'mem-2', score: 0.18, title: '记忆二', injected: false, exclusion: 'threshold' as const, exists: true },
+        { id: 'mem-3', score: 1.2, title: '记忆三', injected: false, exclusion: 'budget' as const, exists: true },
+      ],
+    }
+    const html = renderView(readyRecall([entry]))
+    expect(html).toContain('session.injectedSummary')
+    expect(html).toContain('session.injectedText')
+    expect(html).toContain('session.whyInjected')
+    expect(html).toContain('session.whyThreshold')
+    expect(html).toContain('session.whyBudget')
+    expect(html).toContain('session.helpful')
+    expect(html).toContain('session.irrelevant')
+  })
+
+  it('状态视图渲染库/检索/同步/Obsidian/回执', () => {
+    const html = renderView(
+      panelState({ view: 'status', status: { status: 'ready', data: STATUS_DATA } }),
+    )
+    expect(html).toContain('status.library')
+    expect(html).toContain('status.search')
+    expect(html).toContain('status.syncUnavailable')
+    expect(html).toContain('status.obsidian')
+    expect(html).toContain('status.noReceipts')
+  })
+
+  it('统一回执与编辑器可同时渲染', () => {
+    const html = renderView(
+      panelState({
+        receipt: RECEIPT,
+        editor: emptyEditorState({ mode: 'create', status: 'open' }),
+      }),
+    )
+    expect(html).toContain('receipt.saved')
+    expect(html).toContain('receipt.embeddedDisabled')
+    expect(html).toContain('editor.create')
+    expect(html).toContain('editor.title')
+    expect(html).toContain('editor.save')
   })
 })
 
@@ -676,8 +791,8 @@ describe('MemoryPanelView SSR：详情', () => {
     expect(html).toContain('detail.ancestors')
     expect(html).toContain('detail.children')
     expect(html).toContain('detail.chain')
-    expect(html).toContain('detail.copyContent')
-    expect(html).toContain('detail.copyId')
+    expect(html).toContain('detail.copyAction')
+    expect(html).toContain('detail.copyIdAction')
     expect(html).toContain('祖先记忆')
     expect(html).toContain('子条记忆')
   })
@@ -899,6 +1014,14 @@ function pendingApi(): MemoryApi {
     show: () => pending(),
     tree: () => pending(),
     sessionRecalls: () => pending(),
+    status: () => pending(),
+    remember: () => pending(),
+    update: () => pending(),
+    attach: () => pending(),
+    forget: () => pending(),
+    feedback: () => pending(),
+    sync: () => pending(),
+    reembed: () => pending(),
   }
 }
 
@@ -911,7 +1034,8 @@ describe('MemliteMemoryPanel SSR', () => {
     expect(html).toContain('view.session')
     expect(html).toContain('view.all')
     expect(html).toContain('view.tree')
-    expect(html).toContain('readOnly')
+    expect(html).toContain('view.status')
+    expect(html).toContain('header.store')
     expect(html).toContain('refresh')
   })
 

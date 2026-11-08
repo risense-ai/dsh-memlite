@@ -27,6 +27,13 @@ export interface RecallTitleSelection {
   text: string
   /** 每个候选（含未注入的）及其判定原因。 */
   hits: RecallTitleDecision[]
+  /** 本轮实际使用的字符数（标题块长度）。 */
+  usedChars: number
+  /** 召回当时的阈值/预算/条数快照，供 UI 解释。 */
+  threshold: number
+  budgetChars: number
+  candidateCount: number
+  injectedCount: number
 }
 
 /**
@@ -61,7 +68,15 @@ export function selectRecallTitles(r: RecallResult, threshold: number, budget: n
     count++
     hits.push({ id: hit.id, score: hit.score, title, injected: true })
   }
-  return { text: count > 0 ? text : '', hits }
+  return {
+    text: count > 0 ? text : '',
+    hits,
+    usedChars: count > 0 ? text.length : 0,
+    threshold,
+    budgetChars: budget,
+    candidateCount: r.hits.length,
+    injectedCount: count,
+  }
 }
 
 /** 自动注入块；无命中/全部低于阈值返回空串（不占 prompt）。 */

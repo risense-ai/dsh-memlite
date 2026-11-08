@@ -59,7 +59,7 @@ const inputStyle: CSSProperties = {
   fontSize: 13,
   outline: 'none',
 }
-const inputErrorStyle: CSSProperties = { ...inputStyle, borderColor: COLOR_ERROR }
+const inputErrorStyle: CSSProperties = { ...inputStyle, border: `.5px solid ${COLOR_ERROR}` }
 const selectStyle: CSSProperties = { ...inputStyle, appearance: 'auto' }
 const checkboxRowStyle: CSSProperties = { display: 'flex', alignItems: 'flex-start', gap: 8 }
 const checkboxStyle: CSSProperties = { margin: '3px 0 0', width: 16, height: 16, flex: 'none' }
@@ -564,7 +564,7 @@ function MemliteConfigForm(props: { t: PageProps['t']; form: ConfigFormLike }): 
             style={{
               ...resultStyle,
               color: obsidianResult.ok ? COLOR_SECONDARY : COLOR_ERROR,
-              borderColor: obsidianResult.ok ? COLOR_BORDER : COLOR_ERROR,
+              border: `.5px solid ${obsidianResult.ok ? COLOR_BORDER : COLOR_ERROR}`,
             }}
           >
             {obsidianResult.text}

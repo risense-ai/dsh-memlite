@@ -419,7 +419,8 @@ M0 spike 用官方 npm 包在真机（macOS，dsh CLI + web/headless profile）�
 
 ## 十四、聊天记忆浏览器（M8 设计，2026-11-08）
 
-> **实施状态（2026-11-08，0.4.0）**：M8a–M8c 已按本节落地（只读）。宿主版本 **DSH 0.2.2-alpha.2**
+> **实施状态（2026-11-08，0.5.0）**：M8a–M8c 于 0.4.0 落地；M9–M12 写入闭环、召回解释、状态视图于 0.5.0 落地。
+> 完整规格见 [`ui-complete-plan.md`](./ui-complete-plan.md)。宿主版本 **DSH 0.2.2-alpha.2**
 > （`ctx.sidebarRightTabs.register` + `sidebar.right.pane.tab` 键ed slot），实现契约与实测记录见
 > [m8-contract.md](./m8-contract.md)。与设计的两处偏差：
 > 1. **列表/筛选未新增 memlite-js 公开方法**——主类已有公开 `store` getter 与 `list/tree/chain`，
@@ -450,7 +451,7 @@ M0 spike 用官方 npm 包在真机（macOS，dsh CLI + web/headless profile）�
 - **M8a（2 天）**：右侧 Memory 页签、全部记忆、搜索筛选、分页/增量加载、详情和复制；只读。
 - **M8b（1 天）**：可折叠因果树、因果邻居与完整链跳转；只读。
 - **M8c（2 天）**：本次对话命中、注入状态、会话切换、空态/错误态和真机交互验证。
-- **M8d（后续，不在首版）**：编辑、删除、改挂、手动存入、召回反馈。写操作须复用 Memlite 主类、敏感闸、读回校验和删除二次确认，不能由浏览器直接改 JSONL。
+- **M8d（0.5.0 已由 M9b 承接）**：编辑、删除、改挂、手动存入、召回反馈。写操作复用 Memlite 主类、敏感闸、读回校验、`expectedRevision` 条件写和删除二次确认，浏览器不直接改 JSONL。
 
 首版不开放写操作，不展示向量、嵌入凭据引用、原始查询日志、文件路径或未筛选的 `extra` 字段；只向浏览器提供明确列出的业务字段。
 

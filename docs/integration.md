@@ -10,7 +10,7 @@
 ```json
 {
   "dependencies": {
-    "@rsrsai/memlite": "^0.1.0",
+    "@rsrsai/memlite": "^0.2.0",
     "@rsrsai/memlite-obsidian": "^0.1.0"
   }
 }
@@ -87,7 +87,7 @@ const deps: MemliteDeps = {
 | `remember` | memlite | `mem.remember(content, opts)` |
 | `show` | memlite | `mem.show(id)` |
 | `forget` | memlite | `mem.forget(id)` |
-| `update` | memlite | `mem.update(id, opts)` |
+| `update` | memlite | `mem.update(id, opts, {expectedRevision?})` |
 | `attach` | memlite | `mem.attach(child, parent)` |
 | `tree` | memlite | `mem.tree(opts)` |
 | `chain` | memlite | `mem.chain(id, depth)` |
@@ -100,6 +100,13 @@ const deps: MemliteDeps = {
 | **`vault-status`** | memlite-obsidian | `statusVault(vaultPath, { dataDir })` |
 
 **约束**：插件**不绕过** Memlite 主类直接调用底层模块（store/bm25/vectors 等）。若主类未暴露某能力，应**在 memlite-js 仓加方法**，而非在插件侧直接 import 内部模块。Obsidian 命令同理——优先 `*With` 重载。
+
+### 2.4 条件写（memlite-js 0.2.0+）
+
+- JSONL 平铺字段 `revision`（Rust `serde(flatten)` 原样保留）；新记录从 0 起，更新/改挂递增。
+- `Memlite.update/attach/forget` 可选 `{expectedRevision}`；不一致抛 `StaleVersionError`（`code='STALE_VERSION'`）。
+- 检查与追加在同一同步段；条件写前比较 `memory*.jsonl` 的 size+mtime 签名，外部进程写入会先重载再判冲突。
+- UI 写请求必须带 `expectedRevision`；插件把冲突映射为 HTTP 409 + 当前安全投影，不静默 LWW。
 
 ### 2.6 嵌入 provider
 
@@ -190,6 +197,7 @@ export const inject = ['credentials', 'commands', 'systemPrompt', 'providers'] a
 | memlite-js | memlite-obsidian | dsh-memlite | 策略 |
 |---|---|---|---|
 | 0.1.0 | 0.1.0 | 0.1.0 | 起点 |
+| 0.2.0 | 0.1.0 | 0.5.0 | 条件写/revision；dsh-memlite 使用 `pnpm.overrides` 统一引擎版本 |
 | 0.1.x | 0.1.x | 0.1.x | 跟随；bug 修复直通 |
 | 0.2.0 | 0.2.0 | 0.2.0 | 评估新能力，决定是否暴露 |
 | 1.0.0 | 1.0.0 | 1.0.0 | 同步 major；契约变更须文档化 |

@@ -131,7 +131,10 @@ export interface ObsidianHttpHandlers {
 }
 
 /** 建立一组 HTTP handler；getMem 每次调用取当前引擎（配置热更新后仍指向新实例）。 */
-export function createObsidianHandlers(getMem: () => Memlite): ObsidianHttpHandlers {
+export function createObsidianHandlers(
+  getMem: () => Memlite,
+  activity?: import('./memory-status').ObsidianActivity,
+): ObsidianHttpHandlers {
   let busy = false
 
   const exclusive = async <T>(label: string, operation: () => Promise<T> | T): Promise<T> => {
@@ -144,18 +147,28 @@ export function createObsidianHandlers(getMem: () => Memlite): ObsidianHttpHandl
     }
   }
 
-  const respond = async (operation: () => Promise<string>): Promise<Response> => {
+  const respond = async (
+    label: 'status' | 'import' | 'export',
+    operation: () => Promise<{ text: string; report?: Record<string, unknown> }>,
+  ): Promise<Response> => {
+    activity?.begin(label)
+    let ok = false
     try {
-      return json({ ok: true, text: await operation() })
+      const result = await operation()
+      const response = json({ ok: true, text: result.text, ...(result.report !== undefined ? { report: result.report } : {}) })
+      ok = true
+      return response
     } catch (error) {
       if (error instanceof HttpError) return json({ ok: false, error: error.message }, error.status)
       return json({ ok: false, error: errorText(error) }, 400)
+    } finally {
+      activity?.finish(label, ok)
     }
   }
 
   return {
     import(request) {
-      return respond(() =>
+      return respond('import', () =>
         exclusive('import', async () => {
           const body = await readJson(request)
           const vaultDir = requireVaultDir(body['vaultPath'])
@@ -163,28 +176,58 @@ export function createObsidianHandlers(getMem: () => Memlite): ObsidianHttpHandl
           const writeId = optionalBoolean(body['writeId'], 'writeId')
           const dryRun = optionalBoolean(body['dryRun'], 'dryRun')
           const report = await importVaultWith(getMem(), vaultDir, { project, writeId, dryRun })
-          return formatImportReport(report, dryRun)
+          return {
+            text: formatImportReport(report, dryRun),
+            report: {
+              dryRun,
+              scanned: report.scanned,
+              created: report.created.length,
+              updated: report.updated.length,
+              unchanged: report.unchanged,
+              skipped: report.skipped.length,
+              warnings: report.warnings.length,
+              ...(dryRun
+                ? { wouldCreate: report.wouldCreate, wouldUpdate: report.wouldUpdate }
+                : {}),
+            },
+          }
         }),
       )
     },
     export(request) {
-      return respond(() =>
+      return respond('export', () =>
         exclusive('export', async () => {
           const body = await readJson(request)
           const outputPath = resolvePathArg(body['outputPath'], 'outputPath')
           const overwrite = optionalBoolean(body['overwrite'], 'overwrite')
           const report = exportVaultWith(getMem(), outputPath, { overwrite })
-          return formatExportReport(report)
+          return {
+            text: formatExportReport(report),
+            report: {
+              written: report.written,
+              total: report.total,
+              dangling: report.dangling,
+              warnings: report.warnings.length,
+            },
+          }
         }),
       )
     },
     status(request) {
-      return respond(() =>
+      return respond('status', () =>
         exclusive('status', async () => {
           const body = await readJson(request)
           const vaultDir = requireVaultDir(body['vaultPath'])
           const report = await statusVaultWith(getMem(), vaultDir)
-          return formatStatusReport(report)
+          return {
+            text: formatStatusReport(report),
+            report: {
+              synced: report.synced,
+              outdated: report.outdated,
+              missing: report.missing,
+              skipped: report.skipped.length,
+            },
+          }
         }),
       )
     },

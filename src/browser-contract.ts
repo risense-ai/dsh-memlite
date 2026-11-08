@@ -28,6 +28,8 @@ export interface MemorySummaryItem {
   ts: number
   importance: MemoryImportance
   kind: MemoryKind
+  /** 条件写版本（老数据由 ts 推导；更新后递增）。 */
+  revision: number
   /** 直接子条数量（因果树入口用）。 */
   childCount: number
   /** 无子条。 */
@@ -97,6 +99,10 @@ export interface MemoryDetail {
   ts: number
   importance: MemoryImportance
   kind: MemoryKind
+  /** 条件写版本；写请求必须回传。 */
+  revision: number
+  /** 因果父 id（空串=根）；用于改挂编辑器预选。 */
+  parentId: string
   childCount: number
   leaf: boolean
 }
@@ -176,6 +182,20 @@ export interface MemorySessionRecall {
   /** status=skipped 的原因。 */
   skipReason?: MemorySkipReason
   hits: MemorySessionHit[]
+  /** 本轮实际追加进 decision.messages 的标题块（不含原始提示词/正文；长度受预算上限）。 */
+  injectedText?: string
+  /** 召回当时的阈值快照。 */
+  threshold?: number
+  /** 召回当时的字符预算快照。 */
+  budgetChars?: number
+  /** 实际注入标题块使用的字符数。 */
+  usedChars?: number
+  /** 召回条数上限快照。 */
+  limit?: number
+  /** 召回耗时（毫秒）。 */
+  elapsedMs?: number
+  /** 显式反馈（按 memory id；只存内存，重载清空，不自动调权）。 */
+  feedback?: Record<string, 'helpful' | 'irrelevant'>
 }
 
 export interface MemorySessionRecallsRequest {
@@ -197,7 +217,15 @@ export interface MemorySessionRecallsResponse {
 /** 宿主统一响应外壳。 */
 export type MemoryApiResponse<T> =
   | { ok: true; data: T }
-  | { ok: false; error: string; disabled?: boolean }
+  | {
+      ok: false
+      error: string
+      disabled?: boolean
+      /** 稳定错误码（如 STALE_VERSION），只用于已知业务错误。 */
+      code?: string
+      /** 写操作失败/冲突时的统一回执，供 UI 保留草稿与展示当前版本。 */
+      receipt?: MemoryWriteReceipt
+    }
 
 /** document-relative 路径（与 Obsidian 路由同一约定，由 connection 负责认证/信任栅栏）。 */
 export const MEMORY_BROWSER_PATHS = {
@@ -206,9 +234,186 @@ export const MEMORY_BROWSER_PATHS = {
   show: 'api/memlite/browser/show',
   tree: 'api/memlite/browser/tree',
   sessionRecalls: 'api/memlite/browser/session-recalls',
+  status: 'api/memlite/browser/status',
+  remember: 'api/memlite/browser/remember',
+  update: 'api/memlite/browser/update',
+  attach: 'api/memlite/browser/attach',
+  forget: 'api/memlite/browser/forget',
+  feedback: 'api/memlite/browser/recall-feedback',
+  sync: 'api/memlite/browser/sync',
+  reembed: 'api/memlite/browser/reembed',
 } as const
 
 export type MemoryBrowserRoute = keyof typeof MEMORY_BROWSER_PATHS
+
+/* -------------------------------------------------------------------------- */
+/* 写操作契约（M9b）                                                           */
+/* -------------------------------------------------------------------------- */
+
+export type MemoryWriteKind = 'remember' | 'update' | 'attach' | 'forget'
+
+/**
+ * 写入回执状态。词典与 `docs/ui-complete-plan.md §6.1` 一致；
+ * 当前引擎没有 pending 审批域，因此不出现「已提交等待确认」。
+ */
+export type MemoryWriteStatus =
+  | 'saved'
+  | 'saved-degraded'
+  | 'skipped'
+  | 'partial'
+  | 'rejected'
+  | 'conflict'
+  | 'failed'
+  | 'unconfirmed'
+
+export type MemoryEmbeddedStatus = 'updated' | 'disabled' | 'pending' | 'failed' | 'not-applicable'
+
+/** 一次 UI 写操作的统一回执；服务端按 operationId 幂等。 */
+export interface MemoryWriteReceipt {
+  operationId: string
+  kind: MemoryWriteKind
+  status: MemoryWriteStatus
+  id: string
+  title: string
+  /** 写后读回：id/标题/正文（或 attach 的父链、forget 的不存在）一致。 */
+  verified: boolean
+  embedded: MemoryEmbeddedStatus
+  /** 稳定错误码（STALE_VERSION / SENSITIVE / NOT_FOUND / INVALID / ENGINE / UNCONFIRMED）。 */
+  code?: string
+  /** 面向用户的安全说明；不含路径、密钥、原始异常栈。 */
+  message?: string
+  /** 秒级时间戳。 */
+  timestamp: number
+  /** 更新/改挂后的新版本号。 */
+  revision?: number
+  /** 冲突时的当前安全投影（供 UI 并排展示草稿）。正文限长。 */
+  current?: MemoryDetail
+}
+
+export interface MemoryWriteResponse {
+  receipt: MemoryWriteReceipt
+}
+
+/** 回执按会话/agent 隔离；只影响内存回执分组，不影响写入目标。 */
+export interface MemoryWriteScope {
+  sessionId?: string
+  agentId?: string
+}
+
+export interface MemoryRememberRequest extends MemoryWriteScope {
+  operationId: string
+  title: string
+  content: string
+  tags?: string[]
+  project?: string
+  importance?: 'important' | 'trivial'
+  /** 因果父条；缺省=根。 */
+  parentId?: string
+}
+
+export interface MemoryUpdateRequest extends MemoryWriteScope {
+  operationId: string
+  id: string
+  expectedRevision: number
+  title?: string
+  content?: string
+  tags?: string[]
+  importance?: MemoryImportance
+}
+
+export interface MemoryAttachRequest extends MemoryWriteScope {
+  operationId: string
+  id: string
+  expectedRevision: number
+  /** 新父条；空串=升根。 */
+  parentId: string
+}
+
+export interface MemoryForgetRequest extends MemoryWriteScope {
+  operationId: string
+  id: string
+  expectedRevision: number
+  /** 必须与当前标题一致，防止误删。 */
+  confirmTitle: string
+}
+
+export interface MemoryRecallFeedbackRequest {
+  sessionId?: string
+  agentId?: string
+  turn: number
+  messageId: string
+  memoryId: string
+  feedback: 'helpful' | 'irrelevant'
+}
+
+export interface MemoryRecallFeedbackResponse {
+  updated: boolean
+  feedback: 'helpful' | 'irrelevant'
+}
+
+/* -------------------------------------------------------------------------- */
+/* 状态视图契约（M11）                                                         */
+/* -------------------------------------------------------------------------- */
+
+export type MemoryDataScope = 'project' | 'user' | 'custom'
+
+export interface MemoryStatusResponse {
+  engine: number
+  library: {
+    enabled: boolean
+    records: number
+    badLines: number
+    vectors: number
+    /** 只给语义类别，不给完整路径。 */
+    dataScope: MemoryDataScope
+    files: number
+  }
+  search: {
+    /** 'bm25' 或 'semantic+bm25'；只是当前配置，不宣称本次请求使用。 */
+    backend: 'bm25' | 'semantic+bm25'
+    embeddingProvider: 'none' | 'host' | 'openai-compatible'
+    embeddingConfigured: boolean
+    /** 本次运行降级次数（无法精确时保持 0，不猜测）。 */
+    fallbacks: number
+  }
+  sync: {
+    available: boolean
+    hasRemote: boolean
+    dirty: boolean
+    /** 最近一次显式同步是否完成双通道 sha 核验；未同步过为 false。 */
+    verified: boolean
+    localSha: string
+    note?: string
+  }
+  obsidian: {
+    state: 'unchecked' | 'busy' | 'ok' | 'error'
+    lastOperation?: 'status' | 'preview' | 'import' | 'export'
+    timestamp?: number
+  }
+  /** 当前会话/agent 的最近回执（最多 50；内存态，重载清空）。 */
+  receipts: MemoryWriteReceipt[]
+}
+
+export interface MemorySyncRequest {
+  operationId: string
+}
+
+export interface MemorySyncResponse {
+  committed: boolean
+  localSha: string
+  remoteSha: string
+  verified: boolean
+}
+
+export interface MemoryReembedRequest {
+  operationId: string
+}
+
+export interface MemoryReembedResponse {
+  total: number
+  embedded: number
+  failed: number
+}
 
 /** 宿主侧内部使用的投影选项（不属于线上契约）。 */
 export interface ProjectionLimits {

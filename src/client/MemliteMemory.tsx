@@ -39,6 +39,11 @@ import {
   isAbortError,
   type MemoryApi,
 } from './memory-api'
+import { MemoryEditor, emptyEditorState, type EditorActions, type EditorState } from './memory-editor'
+import { MemoryStatusView, type StatusViewActions, type StatusViewState } from './memory-status-view'
+import { ReceiptBanner } from './memory-receipt'
+import { newOperationId } from './memory-ui'
+import type { MemoryStatusResponse, MemoryWriteReceipt } from '../browser-contract'
 
 /* -------------------------------------------------------------------------- */
 /* 主题色（与 MemliteSettings.tsx 一致，仅用 DSH 主题变量）                     */
@@ -92,7 +97,7 @@ const tabStyle: CSSProperties = {
 }
 const tabActiveStyle: CSSProperties = {
   ...tabStyle,
-  borderColor: 'transparent',
+  border: '.5px solid transparent',
   background: COLOR_ACCENT,
   color: COLOR_ACCENT_FG,
 }
@@ -211,12 +216,12 @@ const badgeStyle: CSSProperties = {
 }
 const injectedBadgeStyle: CSSProperties = {
   ...badgeStyle,
-  borderColor: COLOR_ACCENT,
+  border: `.5px solid ${COLOR_ACCENT}`,
   color: COLOR_ACCENT,
 }
 const errorBadgeStyle: CSSProperties = {
   ...badgeStyle,
-  borderColor: COLOR_ERROR,
+  border: `.5px solid ${COLOR_ERROR}`,
   color: COLOR_ERROR,
 }
 const badgeRowStyle: CSSProperties = {
@@ -226,6 +231,15 @@ const badgeRowStyle: CSSProperties = {
   gap: 4,
   minWidth: 0,
 }
+const wideRowStyle: CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'flex-start',
+  gap: 10,
+  minWidth: 0,
+}
+const listColumnStyle: CSSProperties = { flex: '1 1 280px', minWidth: 0, maxWidth: '100%' }
+const detailColumnStyle: CSSProperties = { flex: '2 1 360px', minWidth: 0, maxWidth: '100%' }
 const noticeStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
@@ -283,7 +297,6 @@ const itemSummaryStyle: CSSProperties = {
 }
 const detailCardStyle: CSSProperties = {
   ...cardStyle,
-  borderColor: COLOR_BORDER,
   background: COLOR_CARD_BG,
 }
 const contentStyle: CSSProperties = {
@@ -426,7 +439,7 @@ const neighborButtonStyle: CSSProperties = {
 /* 纯展示层：状态类型 + 渲染入口（SSR 测试直接使用）                            */
 /* -------------------------------------------------------------------------- */
 
-export type MemoryView = 'session' | 'all' | 'tree'
+export type MemoryView = 'session' | 'all' | 'tree' | 'status'
 export type Translate = (key: string, params?: Record<string, unknown>) => string
 
 export interface MemoryErrorInfo {
@@ -485,7 +498,11 @@ export interface MemoryPanelState {
   session: SessionViewState
   all: AllViewState
   tree: TreeViewState
+  status: StatusViewState
   detail: DetailViewState
+  editor: EditorState
+  receipt?: MemoryWriteReceipt
+  feedbackBusy?: string
   query: string
   project: string
   tag: string
@@ -506,6 +523,12 @@ export interface MemoryPanelActions {
   loadChild(id: string): void
   copy(kind: 'content' | 'id', text: string): void
   closeDetail(): void
+  feedback(entry: MemorySessionRecall, memoryId: string, value: 'helpful' | 'irrelevant'): void
+  openEditor(mode: EditorState['mode'], detail?: MemoryShowResponse['record']): void
+  searchAround(query: string): void
+  status: StatusViewActions
+  editor: EditorActions
+  dismissReceipt(): void
 }
 
 /** 空列表状态（也供测试构造初始状态）。 */
@@ -544,11 +567,23 @@ export function MemoryPanelView(props: {
   actions: MemoryPanelActions
 }): ReactNode {
   const { t, state, actions } = props
+  const statusData = state.status.data
+  const disabled = statusData !== undefined && !statusData.library.enabled
+  const statusText =
+    statusData === undefined
+      ? ''
+      : !statusData.library.enabled
+        ? t('header.statusDisabled')
+        : statusData.library.badLines > 0
+          ? t('header.statusWarning')
+          : statusData.search.backend === 'bm25'
+            ? t('header.statusBm25')
+            : t('header.statusSemantic')
   return (
     <div style={panelStyle}>
       <div style={headerStyle}>
         <div style={viewTabsStyle}>
-          {(['session', 'all', 'tree'] as const).map((view) => (
+          {(['session', 'all', 'tree', 'status'] as const).map((view) => (
             <button
               key={view}
               type="button"
@@ -561,27 +596,69 @@ export function MemoryPanelView(props: {
           ))}
         </div>
         <div style={headerMetaStyle}>
-          <span style={badgeStyle}>{t('readOnly')}</span>
+          {statusText !== '' ? (
+            <button type="button" style={linkButtonStyle} onClick={() => actions.setView('status')}>
+              {statusText}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            style={disabled ? disabledButtonStyle : plainButtonStyle}
+            disabled={disabled}
+            onClick={() => actions.openEditor('create')}
+          >
+            {t('header.store')}
+          </button>
           <button type="button" style={linkButtonStyle} onClick={actions.refresh}>
             {t('refresh')}
           </button>
         </div>
       </div>
 
+      {state.receipt !== undefined ? (
+        <ReceiptBanner
+          t={t}
+          receipt={state.receipt}
+          onView={
+            state.receipt.id !== ''
+              ? () => {
+                  actions.setView('all')
+                  actions.select(state.receipt!.id)
+                }
+              : undefined
+          }
+          onContinue={
+            state.receipt.status === 'conflict' || state.receipt.status === 'rejected'
+              ? () => actions.openEditor('create')
+              : undefined
+          }
+          onDismiss={actions.dismissReceipt}
+        />
+      ) : null}
+
       {state.view === 'session' ? (
-        <SessionView t={t} state={state.session} actions={actions} />
+        <SessionView t={t} state={state.session} feedbackBusy={state.feedbackBusy} actions={actions} />
       ) : null}
       {state.view === 'all' ? (
-        <AllMemoriesView
-          t={t}
-          state={state.all}
-          query={state.query}
-          project={state.project}
-          tag={state.tag}
-          importance={state.importance}
-          selectedId={state.detail.id}
-          actions={actions}
-        />
+        <div style={wideRowStyle}>
+          <div style={listColumnStyle}>
+            <AllMemoriesView
+              t={t}
+              state={state.all}
+              query={state.query}
+              project={state.project}
+              tag={state.tag}
+              importance={state.importance}
+              selectedId={state.detail.id}
+              actions={actions}
+            />
+          </div>
+          {state.detail.status !== 'idle' ? (
+            <div style={detailColumnStyle}>
+              <DetailView t={t} state={state.detail} copied={state.copied} actions={actions} />
+            </div>
+          ) : null}
+        </div>
       ) : null}
       {state.view === 'tree' ? (
         <TreeView
@@ -591,10 +668,15 @@ export function MemoryPanelView(props: {
           actions={actions}
         />
       ) : null}
+      {state.view === 'status' ? (
+        <MemoryStatusView t={t} state={state.status} actions={actions.status} />
+      ) : null}
 
-      {state.detail.status !== 'idle' ? (
+      {state.view !== 'all' && state.detail.status !== 'idle' ? (
         <DetailView t={t} state={state.detail} copied={state.copied} actions={actions} />
       ) : null}
+
+      <MemoryEditor t={t} state={state.editor} actions={actions.editor} />
     </div>
   )
 }
@@ -740,9 +822,10 @@ function SessionHitBadge(props: { t: Translate; hit: MemorySessionRecallsRespons
 function SessionView(props: {
   t: Translate
   state: SessionViewState
+  feedbackBusy?: string
   actions: MemoryPanelActions
 }): ReactNode {
-  const { t, state, actions } = props
+  const { t, state, actions, feedbackBusy } = props
   if (state.status === 'unavailable') {
     return (
       <Notice
@@ -798,25 +881,79 @@ function SessionView(props: {
                 ) : null}
                 <span style={hintStyle}>{formatTimestamp(entry.timestamp)}</span>
               </div>
+              <p style={hintStyle}>
+                {t('session.injectedSummary', {
+                  injected: entry.hits.filter((hit) => hit.injected).length,
+                  candidates: entry.hits.length,
+                  backend: entry.backend !== '' ? entry.backend : '—',
+                  ms: entry.elapsedMs ?? 0,
+                })}
+              </p>
               {entry.status === 'error' ? <p style={errorTextStyle}>{t('session.recallError')}</p> : null}
               {entry.status !== 'error' && entry.hits.length === 0 ? (
                 <p style={hintStyle}>{t('session.noHits')}</p>
               ) : null}
-              {entry.hits.map((hit, hitIndex) => (
-                <button
-                  key={`${hit.id}-${hitIndex}`}
-                  type="button"
-                  style={listButtonStyle}
-                  onClick={() => actions.select(hit.id)}
-                >
-                  <span style={itemTitleStyle}>{hit.title !== '' ? hit.title : hit.id}</span>
-                  <span style={badgeRowStyle}>
-                    <SessionHitBadge t={t} hit={hit} />
-                    <span style={badgeStyle}>{t('session.score', { score: formatScore(hit.score) })}</span>
-                    {hit.exists ? null : <span style={errorBadgeStyle}>{t('session.deleted')}</span>}
-                  </span>
-                </button>
-              ))}
+              {entry.injectedText !== undefined && entry.injectedText !== '' ? (
+                <details>
+                  <summary style={linkButtonStyle}>{t('session.injectedText')}</summary>
+                  <pre style={contentStyle}>{entry.injectedText}</pre>
+                </details>
+              ) : entry.hits.length > 0 ? (
+                <p style={hintStyle}>{t('session.noInjectedText')}</p>
+              ) : null}
+              {entry.hits.map((hit, hitIndex) => {
+                const feedback = entry.feedback?.[hit.id]
+                const busyKey = `feedback:${entry.turn}:${entry.messageId}:${hit.id}`
+                const why = hit.injected
+                  ? t('session.whyInjected', {
+                      threshold: entry.threshold ?? 0,
+                      used: entry.usedChars ?? 0,
+                      budget: entry.budgetChars ?? 0,
+                    })
+                  : hit.exclusion === 'threshold'
+                    ? t('session.whyThreshold', {
+                        score: formatScore(hit.score),
+                        threshold: entry.threshold ?? 0,
+                      })
+                    : hit.exclusion === 'budget'
+                      ? t('session.whyBudget', {
+                          used: entry.usedChars ?? 0,
+                          budget: entry.budgetChars ?? 0,
+                        })
+                      : t('session.whyCandidate')
+                return (
+                  <div key={`${hit.id}-${hitIndex}`} style={columnStyle}>
+                    <button type="button" style={listButtonStyle} onClick={() => actions.select(hit.id)}>
+                      <span style={itemTitleStyle}>{hit.title !== '' ? hit.title : hit.id}</span>
+                      <span style={badgeRowStyle}>
+                        <SessionHitBadge t={t} hit={hit} />
+                        <span style={badgeStyle}>{t('session.score', { score: formatScore(hit.score) })}</span>
+                        {hit.exists ? null : <span style={errorBadgeStyle}>{t('session.deleted')}</span>}
+                      </span>
+                      <span style={hintStyle}>{why}</span>
+                    </button>
+                    <div style={badgeRowStyle}>
+                      <button
+                        type="button"
+                        style={feedback === 'helpful' ? tabActiveStyle : plainButtonStyle}
+                        disabled={feedbackBusy !== undefined}
+                        onClick={() => actions.feedback(entry, hit.id, 'helpful')}
+                      >
+                        {t('session.helpful')}
+                      </button>
+                      <button
+                        type="button"
+                        style={feedback === 'irrelevant' ? tabActiveStyle : plainButtonStyle}
+                        disabled={feedbackBusy !== undefined}
+                        onClick={() => actions.feedback(entry, hit.id, 'irrelevant')}
+                      >
+                        {t('session.irrelevant')}
+                      </button>
+                      {feedbackBusy === busyKey ? <span style={hintStyle}>{t('state.loading')}</span> : null}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           ))}
         </div>
@@ -954,7 +1091,7 @@ function AllMemoriesView(props: {
           type="button"
           aria-current={selectedId === item.id ? 'true' : undefined}
           style={
-            selectedId === item.id ? { ...listButtonStyle, borderColor: COLOR_ACCENT } : listButtonStyle
+            selectedId === item.id ? { ...listButtonStyle, border: `.5px solid ${COLOR_ACCENT}` } : listButtonStyle
           }
           onClick={() => actions.select(item.id)}
         >
@@ -1097,6 +1234,12 @@ function DetailView(props: {
           <span style={metaValueStyle}>{formatTimestamp(record.ts)}</span>
         </div>
         <div style={metaRowStyle}>
+          <span style={metaLabelStyle}>{t('detail.parent')}</span>
+          <span style={metaValueStyle}>
+            {record.parentId !== '' ? record.parentId : t('detail.noParent')}
+          </span>
+        </div>
+        <div style={metaRowStyle}>
           <span style={metaLabelStyle}>{t('detail.metaId')}</span>
           <span
             style={{
@@ -1117,15 +1260,30 @@ function DetailView(props: {
       {record.truncated ? <p style={hintStyle}>{t('detail.contentTruncated')}</p> : null}
 
       <div style={badgeRowStyle}>
-        <button
-          type="button"
-          style={plainButtonStyle}
-          onClick={() => actions.copy('content', record.content)}
-        >
-          {t('detail.copyContent')}
+        <button type="button" style={plainButtonStyle} onClick={() => actions.openEditor('edit', record)}>
+          {t('detail.edit')}
+        </button>
+        <button type="button" style={plainButtonStyle} onClick={() => actions.openEditor('reply', record)}>
+          {t('detail.reply')}
+        </button>
+        <button type="button" style={plainButtonStyle} onClick={() => actions.openEditor('attach', record)}>
+          {t('detail.attach')}
+        </button>
+        <button type="button" style={plainButtonStyle} onClick={() => actions.searchAround(record.title)}>
+          {t('detail.around')}
+        </button>
+        <button type="button" style={plainButtonStyle} onClick={() => actions.copy('content', record.content)}>
+          {t('detail.copyAction')}
         </button>
         <button type="button" style={plainButtonStyle} onClick={() => actions.copy('id', record.id)}>
-          {t('detail.copyId')}
+          {t('detail.copyIdAction')}
+        </button>
+        <button
+          type="button"
+          style={{ ...plainButtonStyle, color: COLOR_ERROR, border: `.5px solid ${COLOR_ERROR}` }}
+          onClick={() => actions.openEditor('forget', record)}
+        >
+          {t('detail.forget')}
         </button>
         {copyState}
       </div>
@@ -1220,7 +1378,7 @@ function TreeNodeRow(props: {
 
   return (
     <li style={treeItemStyle}>
-      <div style={{ ...treeRowStyle, paddingLeft: depth * 12 }}>
+      <div id={`tree-node-${node.id}`} style={{ ...treeRowStyle, paddingLeft: depth * 12 }}>
         {canExpand ? (
           <button
             type="button"
@@ -1346,9 +1504,23 @@ function TreeView(props: {
     <div style={columnStyle}>
       <div style={rowBetweenStyle}>
         <span style={hintStyle}>{t('tree.rootCount', { count: state.nodes.length })}</span>
-        {state.trimmed ? (
-          <span style={hintStyle}>{t('tree.trimmed', { count: state.nodes.length })}</span>
-        ) : null}
+        <div style={badgeRowStyle}>
+          {selectedId !== undefined ? (
+            <button
+              type="button"
+              style={linkButtonStyle}
+              onClick={() => {
+                if (typeof document === 'undefined') return
+                document.getElementById(`tree-node-${selectedId}`)?.scrollIntoView({ block: 'center' })
+              }}
+            >
+              {t('tree.locate')}
+            </button>
+          ) : null}
+          {state.trimmed ? (
+            <span style={hintStyle}>{t('tree.trimmed', { count: state.nodes.length })}</span>
+          ) : null}
+        </div>
       </div>
       <ul style={treeListStyle}>
         {state.nodes.map((node) => (
@@ -1436,6 +1608,10 @@ export function MemliteMemoryPanel(props: MemoryPanelProps): ReactNode {
   )
   const [allState, setAllState] = useState<AllViewState>(() => emptyAllState())
   const [treeState, setTreeState] = useState<TreeViewState>(() => emptyTreeState())
+  const [statusState, setStatusState] = useState<StatusViewState>({ status: 'loading' })
+  const [editor, setEditor] = useState<EditorState>(() => emptyEditorState())
+  const [receipt, setReceipt] = useState<MemoryWriteReceipt>()
+  const [feedbackBusy, setFeedbackBusy] = useState<string>()
   const [detail, setDetail] = useState<DetailViewState>({ status: 'idle' })
   const [query, setQuery] = useState('')
   const [project, setProject] = useState('')
@@ -1447,6 +1623,9 @@ export function MemliteMemoryPanel(props: MemoryPanelProps): ReactNode {
   const aliveRef = useRef(true)
   const primaryRef = useRef<AbortController | undefined>(undefined)
   const detailRef = useRef<AbortController | undefined>(undefined)
+  const statusRef = useRef<AbortController | undefined>(undefined)
+  const editorSearchRef = useRef<AbortController | undefined>(undefined)
+  const saveRef = useRef<AbortController | undefined>(undefined)
   const childrenRef = useRef<Map<string, AbortController>>(new Map())
   const engineRef = useRef<number | undefined>(undefined)
   const allRef = useRef<AllViewState>(allState)
@@ -1464,11 +1643,23 @@ export function MemliteMemoryPanel(props: MemoryPanelProps): ReactNode {
     for (const controller of childrenRef.current.values()) controller.abort()
     childrenRef.current.clear()
   }, [])
+  const abortStatus = useCallback(() => {
+    statusRef.current?.abort()
+    statusRef.current = undefined
+  }, [])
+  const abortEditor = useCallback(() => {
+    editorSearchRef.current?.abort()
+    editorSearchRef.current = undefined
+    saveRef.current?.abort()
+    saveRef.current = undefined
+  }, [])
   const abortAll = useCallback(() => {
     abortPrimary()
     abortDetail()
     abortChildren()
-  }, [abortPrimary, abortDetail, abortChildren])
+    abortStatus()
+    abortEditor()
+  }, [abortPrimary, abortDetail, abortChildren, abortStatus, abortEditor])
 
   useEffect(() => {
     allRef.current = allState
@@ -1491,6 +1682,10 @@ export function MemliteMemoryPanel(props: MemoryPanelProps): ReactNode {
     abortAll()
     setDetail({ status: 'idle' })
     setCopied(undefined)
+    setReceipt(undefined)
+    setEditor(emptyEditorState())
+    setFeedbackBusy(undefined)
+    setStatusState({ status: 'loading' })
     engineRef.current = undefined
   }, [sessionId, abortAll])
 
@@ -1504,12 +1699,42 @@ export function MemliteMemoryPanel(props: MemoryPanelProps): ReactNode {
       engineRef.current = engine
       if (previous === undefined || previous === engine) return false
       abortDetail()
+      abortEditor()
       setDetail({ status: 'idle' })
+      setEditor(emptyEditorState())
+      setReceipt(undefined)
       setReloadToken((token) => token + 1)
       return true
     },
-    [abortDetail],
+    [abortDetail, abortEditor],
   )
+
+  const loadStatus = useCallback(() => {
+    if (!tabVisible) return
+    abortStatus()
+    const controller = new AbortController()
+    statusRef.current = controller
+    setStatusState((previous) => ({
+      ...previous,
+      status: previous.data === undefined ? 'loading' : previous.status,
+      error: undefined,
+    }))
+    void api
+      .status(sessionId !== undefined && sessionId.trim() !== '' ? { sessionId } : {}, controller.signal)
+      .then((data) => {
+        if (controller.signal.aborted || !aliveRef.current) return
+        noteEngine(data.engine)
+        setStatusState((previous) => ({ ...previous, status: 'ready', data, error: undefined }))
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted || isAbortError(error) || !aliveRef.current) return
+        setStatusState((previous) =>
+          isDisabledError(error)
+            ? { ...previous, status: 'disabled' }
+            : { ...previous, status: 'error', error: toErrorInfo(error) },
+        )
+      })
+  }, [api, sessionId, tabVisible, abortStatus, noteEngine])
 
   const loadSession = useCallback(() => {
     if (!tabVisible) return
@@ -1782,6 +2007,438 @@ export function MemliteMemoryPanel(props: MemoryPanelProps): ReactNode {
     }
   }, [])
 
+  const openEditor = useCallback(
+    (mode: EditorState['mode'], record?: MemoryShowResponse['record']) => {
+      const current = record ?? (detail.status === 'ready' ? detail.data?.record : undefined)
+      if (mode !== 'create' && current === undefined) return
+      abortEditor()
+      if (mode === 'create') {
+        setEditor(emptyEditorState({ mode: 'create', status: 'open', importance: 'important' }))
+        return
+      }
+      const base = current!
+      if (mode === 'edit') {
+        setEditor(
+          emptyEditorState({
+            mode: 'edit',
+            status: 'open',
+            id: base.id,
+            expectedRevision: base.revision,
+            title: base.title,
+            content: base.content,
+            tags: base.tags.join(', '),
+            project: base.project,
+            importance: base.importance,
+            baseTitle: base.title,
+          }),
+        )
+        return
+      }
+      if (mode === 'reply') {
+        setEditor(
+          emptyEditorState({
+            mode: 'reply',
+            status: 'open',
+            id: base.id,
+            parentId: base.id,
+            parentTitle: base.title,
+            project: base.project,
+            importance: 'important',
+            baseTitle: base.title,
+          }),
+        )
+        return
+      }
+      if (mode === 'attach') {
+        setEditor(
+          emptyEditorState({
+            mode: 'attach',
+            status: 'open',
+            id: base.id,
+            expectedRevision: base.revision,
+            parentId: base.parentId,
+            baseTitle: base.title,
+          }),
+        )
+        return
+      }
+      setEditor(
+        emptyEditorState({
+          mode: 'forget',
+          status: 'open',
+          id: base.id,
+          expectedRevision: base.revision,
+          baseTitle: base.title !== '' ? base.title : base.id,
+        }),
+      )
+    },
+    [abortEditor, detail],
+  )
+
+  const searchParent = useCallback(() => {
+    const query = editor.parentQuery.trim()
+    if (query === '') {
+      setEditor((previous) => ({ ...previous, parentResults: [] }))
+      return
+    }
+    editorSearchRef.current?.abort()
+    const controller = new AbortController()
+    editorSearchRef.current = controller
+    setEditor((previous) => ({ ...previous, parentSearching: true }))
+    void api
+      .search({ query, limit: 5 }, controller.signal)
+      .then((data) => {
+        if (controller.signal.aborted || !aliveRef.current) return
+        const currentId = editor.id
+        setEditor((previous) => ({
+          ...previous,
+          parentSearching: false,
+          parentResults: data.items
+            .filter((item) => item.id !== currentId)
+            .map((item) => ({ id: item.id, title: item.title, revision: item.revision })),
+        }))
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted || isAbortError(error) || !aliveRef.current) return
+        setEditor((previous) => ({ ...previous, parentSearching: false, parentResults: [] }))
+      })
+  }, [api, editor.parentQuery, editor.id])
+
+  const feedback = useCallback(
+    (entry: MemorySessionRecall, memoryId: string, value: 'helpful' | 'irrelevant') => {
+      if (sessionId === undefined || sessionId.trim() === '') return
+      const busyKey = `feedback:${entry.turn}:${entry.messageId}:${memoryId}`
+      setFeedbackBusy(busyKey)
+      void api
+        .feedback({
+          sessionId,
+          turn: entry.turn,
+          messageId: entry.messageId,
+          memoryId,
+          feedback: value,
+        })
+        .then((result) => {
+          if (!aliveRef.current) return
+          setSessionState((previous) => {
+            if (previous.data === undefined) return previous
+            return {
+              ...previous,
+              data: {
+                ...previous.data,
+                entries: previous.data.entries.map((item) =>
+                  item.turn === entry.turn && item.messageId === entry.messageId
+                    ? { ...item, feedback: { ...(item.feedback ?? {}), [memoryId]: result.feedback } }
+                    : item,
+                ),
+              },
+            }
+          })
+        })
+        .catch(() => {
+          // 反馈失败不阻塞浏览；用户可重试。
+        })
+        .finally(() => {
+          if (aliveRef.current) setFeedbackBusy(undefined)
+        })
+    },
+    [api, sessionId],
+  )
+
+  const runSync = useCallback(() => {
+    setStatusState((previous) => ({ ...previous, busy: 'sync', result: undefined }))
+    void api
+      .sync({ operationId: newOperationId() })
+      .then((result) => {
+        if (!aliveRef.current) return
+        setStatusState((previous) => ({
+          ...previous,
+          busy: undefined,
+          result: {
+            ok: result.verified,
+            text: t('status.syncResult', {
+              committed: String(result.committed),
+              local: result.localSha,
+              remote: result.remoteSha,
+              verified: String(result.verified),
+            }),
+          },
+        }))
+        loadStatus()
+      })
+      .catch((error: unknown) => {
+        if (!aliveRef.current) return
+        setStatusState((previous) => ({
+          ...previous,
+          busy: undefined,
+          result: {
+            ok: false,
+            text: error instanceof Error ? error.message : t('state.errorGeneric'),
+          },
+        }))
+      })
+  }, [api, loadStatus, t])
+
+  const runReembed = useCallback(() => {
+    setStatusState((previous) => ({ ...previous, busy: 'reembed', result: undefined }))
+    void api
+      .reembed({ operationId: newOperationId() })
+      .then((result) => {
+        if (!aliveRef.current) return
+        setStatusState((previous) => ({
+          ...previous,
+          busy: undefined,
+          result: {
+            ok: result.failed === 0,
+            text: t('status.reembedResult', {
+              embedded: result.embedded,
+              total: result.total,
+              failed: result.failed,
+            }),
+          },
+        }))
+        loadStatus()
+      })
+      .catch((error: unknown) => {
+        if (!aliveRef.current) return
+        setStatusState((previous) => ({
+          ...previous,
+          busy: undefined,
+          result: {
+            ok: false,
+            text: error instanceof Error ? error.message : t('state.errorGeneric'),
+          },
+        }))
+      })
+  }, [api, loadStatus, t])
+
+  const copyDiagnostics = useCallback(() => {
+    const data = statusState.data
+    if (data === undefined) return
+    const text = [
+      `memlite status engine=${data.engine}`,
+      `records=${data.library.records} badLines=${data.library.badLines} vectors=${data.library.vectors}`,
+      `backend=${data.search.backend} embedding=${data.search.embeddingProvider}`,
+      `sync.available=${data.sync.available} hasRemote=${data.sync.hasRemote} dirty=${data.sync.dirty} local=${data.sync.localSha}`,
+      `obsidian=${data.obsidian.state}`,
+      `receipts=${data.receipts.length}`,
+    ].join('\n')
+    const clipboard =
+      typeof navigator === 'undefined' ? undefined : (navigator as { clipboard?: unknown }).clipboard
+    const writeText =
+      typeof clipboard === 'object' && clipboard !== null
+        ? (clipboard as { writeText?: unknown }).writeText
+        : undefined
+    if (typeof writeText !== 'function') {
+      setStatusState((previous) => ({ ...previous, copied: 'failed' }))
+      return
+    }
+    try {
+      void (writeText as (value: string) => Promise<void>).call(clipboard, text).then(
+        () => setStatusState((previous) => ({ ...previous, copied: 'ok' })),
+        () => setStatusState((previous) => ({ ...previous, copied: 'failed' })),
+      )
+    } catch {
+      setStatusState((previous) => ({ ...previous, copied: 'failed' }))
+    }
+  }, [statusState.data])
+
+  const saveEditor = useCallback(() => {
+    const current = editor
+    if (current.status === 'saving') return
+    const mode = current.mode
+    const requireBody = mode === 'create' || mode === 'edit' || mode === 'reply'
+    if (requireBody && current.title.trim() === '') {
+      setEditor((previous) => ({ ...previous, error: t('editor.invalidTitle') }))
+      return
+    }
+    if (requireBody && current.content.trim() === '') {
+      setEditor((previous) => ({ ...previous, error: t('editor.invalidContent') }))
+      return
+    }
+    if (mode !== 'create' && current.expectedRevision === undefined) return
+    const operationId = newOperationId()
+    setEditor((previous) => ({ ...previous, status: 'saving', error: undefined, conflict: undefined }))
+    const tags = current.tags
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter((tag) => tag !== '')
+    const scope =
+      sessionId !== undefined && sessionId.trim() !== '' ? { sessionId } : {}
+    let task: Promise<MemoryWriteReceipt>
+    if (mode === 'create') {
+      task = api.remember({
+        operationId,
+        title: current.title.trim(),
+        content: current.content,
+        tags,
+        project: current.project.trim(),
+        importance: current.importance === '' ? 'important' : current.importance,
+        ...(current.parentId !== '' ? { parentId: current.parentId } : {}),
+        ...scope,
+      })
+    } else if (mode === 'edit') {
+      task = api.update({
+        operationId,
+        id: current.id!,
+        expectedRevision: current.expectedRevision!,
+        title: current.title,
+        content: current.content,
+        tags,
+        importance: current.importance,
+        ...scope,
+      })
+    } else if (mode === 'reply') {
+      task = api.remember({
+        operationId,
+        title: current.title.trim(),
+        content: current.content,
+        tags,
+        project: current.project.trim(),
+        importance: current.importance === '' ? 'important' : current.importance,
+        parentId: current.parentId,
+        ...scope,
+      })
+    } else if (mode === 'attach') {
+      task = api.attach({
+        operationId,
+        id: current.id!,
+        expectedRevision: current.expectedRevision!,
+        parentId: current.parentId,
+        ...scope,
+      })
+    } else {
+      task = api.forget({
+        operationId,
+        id: current.id!,
+        expectedRevision: current.expectedRevision!,
+        confirmTitle: current.confirmTitle.trim(),
+        ...scope,
+      })
+    }
+    void task.then(
+      (result) => {
+        if (!aliveRef.current) return
+        setReceipt(result)
+        if (result.status === 'saved' || result.status === 'saved-degraded') {
+          setEditor((previous) => ({ ...previous, status: 'closed' }))
+          setReloadToken((token) => token + 1)
+          if (mode === 'forget') {
+            setDetail({ status: 'idle' })
+          } else if (result.id !== '') {
+            select(result.id)
+          }
+          loadStatus()
+          return
+        }
+        setEditor((previous) => ({
+          ...previous,
+          status: 'open',
+          ...(result.status === 'conflict'
+            ? { conflict: result }
+            : { error: result.message ?? t('state.errorGeneric') }),
+        }))
+      },
+      (error: unknown) => {
+        if (!aliveRef.current || isAbortError(error)) return
+        const kind =
+          mode === 'attach'
+            ? 'attach'
+            : mode === 'forget'
+              ? 'forget'
+              : mode === 'create' || mode === 'reply'
+                ? 'remember'
+                : 'update'
+        if (error instanceof MemoryApiError && error.receipt !== undefined) {
+          const failedReceipt = error.receipt
+          setReceipt(failedReceipt)
+          setEditor((previous) => ({
+            ...previous,
+            status: 'open',
+            ...(failedReceipt.status === 'conflict'
+              ? { conflict: failedReceipt }
+              : { error: failedReceipt.message ?? error.message }),
+          }))
+          return
+        }
+        if (error instanceof MemoryApiError && error.code !== 'network') {
+          const failedReceipt: MemoryWriteReceipt = {
+            operationId,
+            kind,
+            status: 'failed',
+            id: current.id ?? '',
+            title: current.title,
+            verified: false,
+            embedded: 'not-applicable',
+            code: error.businessCode ?? error.code,
+            message: error.disabled ? t('state.disabledDescription') : error.message,
+            timestamp: Math.floor(Date.now() / 1000),
+          }
+          setReceipt(failedReceipt)
+          setEditor((previous) => ({
+            ...previous,
+            status: 'open',
+            error: failedReceipt.message ?? t('state.errorGeneric'),
+          }))
+          return
+        }
+        const unconfirmed: MemoryWriteReceipt = {
+          operationId,
+          kind,
+          status: 'unconfirmed',
+          id: current.id ?? '',
+          title: current.title,
+          verified: false,
+          embedded: 'not-applicable',
+          code: 'UNCONFIRMED',
+          message: t('receipt.unconfirmedHint'),
+          timestamp: Math.floor(Date.now() / 1000),
+        }
+        setReceipt(unconfirmed)
+        setEditor((previous) => ({ ...previous, status: 'open', error: t('receipt.unconfirmedHint') }))
+      },
+    )
+  }, [api, editor, loadStatus, select, sessionId, t])
+
+  const editorActions: EditorActions = {
+    setTitle: (value) => setEditor((previous) => ({ ...previous, title: value })),
+    setContent: (value) => setEditor((previous) => ({ ...previous, content: value })),
+    setTags: (value) => setEditor((previous) => ({ ...previous, tags: value })),
+    setProject: (value) => setEditor((previous) => ({ ...previous, project: value })),
+    setImportance: (value) => setEditor((previous) => ({ ...previous, importance: value })),
+    setParentQuery: (value) => setEditor((previous) => ({ ...previous, parentQuery: value })),
+    setParent: (id, title) =>
+      setEditor((previous) => ({ ...previous, parentId: id, parentTitle: title, parentResults: [] })),
+    clearParent: () => setEditor((previous) => ({ ...previous, parentId: '', parentTitle: '' })),
+    searchParent,
+    setConfirmTitle: (value) => setEditor((previous) => ({ ...previous, confirmTitle: value })),
+    save: saveEditor,
+    cancel: () => {
+      abortEditor()
+      setEditor((previous) => ({ ...previous, status: 'closed' }))
+    },
+    reloadConflict: () => {
+      const conflict = editor.conflict
+      setEditor((previous) => ({ ...previous, status: 'closed', conflict: undefined, error: undefined }))
+      if (conflict !== undefined && conflict.id !== '') select(conflict.id)
+    },
+    copyDraft: () => {
+      const draft = [editor.title, editor.content].filter((part) => part !== '').join('\n\n')
+      copy('content', draft)
+    },
+  }
+
+  const statusActions: StatusViewActions = {
+    refresh: loadStatus,
+    sync: runSync,
+    reembed: runReembed,
+    copyDiagnostics,
+    openReceipt: (id) => {
+      setView('all')
+      setDetail({ status: 'idle' })
+      select(id)
+    },
+  }
+
   // 视图变化/刷新/换会话时重新加载对应数据（abort 在各自 load 里完成）。
   useEffect(() => {
     if (view !== 'session') return
@@ -1802,6 +2459,16 @@ export function MemliteMemoryPanel(props: MemoryPanelProps): ReactNode {
     if (view !== 'tree') return
     loadTreeRoot()
   }, [view, loadTreeRoot, reloadToken])
+
+  useEffect(() => {
+    if (view !== 'status') return
+    loadStatus()
+  }, [view, loadStatus, reloadToken])
+
+  // 顶栏状态徽章：挂载即取一次；会话/可见性变化时 refresh 会随 loadStatus 身份变化重跑。
+  useEffect(() => {
+    loadStatus()
+  }, [loadStatus])
 
   const changeView = (next: MemoryView): void => {
     if (next === view) return
@@ -1835,6 +2502,16 @@ export function MemliteMemoryPanel(props: MemoryPanelProps): ReactNode {
       setDetail({ status: 'idle' })
       setCopied(undefined)
     },
+    feedback,
+    openEditor,
+    searchAround: (query) => {
+      setQuery(query)
+      setView('all')
+      setDetail({ status: 'idle' })
+    },
+    status: statusActions,
+    editor: editorActions,
+    dismissReceipt: () => setReceipt(undefined),
   }
 
   const state: MemoryPanelState = {
@@ -1842,7 +2519,11 @@ export function MemliteMemoryPanel(props: MemoryPanelProps): ReactNode {
     session: sessionState,
     all: allState,
     tree: treeState,
+    status: statusState,
     detail,
+    editor,
+    ...(receipt === undefined ? {} : { receipt }),
+    ...(feedbackBusy === undefined ? {} : { feedbackBusy }),
     query,
     project,
     tag,

@@ -49,6 +49,22 @@ export interface RecallLedgerDraft {
     injected: boolean
     exclusion?: MemoryRecallExclusion
   }>
+  /** 实际注入标题块（不含原始提示词/正文；长度已在渲染时受预算约束）。 */
+  injectedText?: string
+  threshold?: number
+  budgetChars?: number
+  usedChars?: number
+  limit?: number
+  elapsedMs?: number
+}
+
+export interface RecallFeedbackInput {
+  sessionId?: string
+  agentId?: string
+  turn: number
+  messageId: string
+  memoryId: string
+  feedback: 'helpful' | 'irrelevant'
 }
 
 export interface RecallLedgerQuery {
@@ -140,6 +156,14 @@ export class RecallLedger {
       hits: Array.isArray(draft.hits)
         ? draft.hits.slice(0, this.limits.maxHitsPerEntry).map((hit) => normalizeHit(hit, ID_CAP))
         : [],
+      ...(typeof draft.injectedText === 'string' && draft.injectedText !== ''
+        ? { injectedText: draft.injectedText.slice(0, 20_000) }
+        : {}),
+      ...(Number.isFinite(draft.threshold) ? { threshold: draft.threshold as number } : {}),
+      ...(Number.isFinite(draft.budgetChars) ? { budgetChars: draft.budgetChars as number } : {}),
+      ...(Number.isFinite(draft.usedChars) ? { usedChars: draft.usedChars as number } : {}),
+      ...(Number.isFinite(draft.limit) ? { limit: draft.limit as number } : {}),
+      ...(Number.isFinite(draft.elapsedMs) ? { elapsedMs: draft.elapsedMs as number } : {}),
     }
     // 同一 messageId 重复记账（重试/热重载后的重放）以新记录为准：先删旧。
     const bucket = this.buckets.get(key) ?? []
@@ -207,6 +231,26 @@ export class RecallLedger {
       entries: entries.slice(0, limit),
       trimmed: entries.length > limit,
     }
+  }
+
+  /** 显式反馈：只允许账本里已有的 memory id；不接收任意正文，不自动调权。 */
+  setFeedback(input: RecallFeedbackInput): boolean {
+    const sessionId = clip(input.sessionId ?? '', ID_CAP)
+    const agentId = clip(input.agentId ?? '', ID_CAP)
+    if (sessionId === '' && agentId === '') return false
+    if (!Number.isSafeInteger(input.turn) || input.turn < 0) return false
+    const messageId = clip(input.messageId, ID_CAP)
+    const memoryId = clip(input.memoryId, ID_CAP)
+    if (messageId === '' || memoryId === '') return false
+    const bucket = this.buckets.get(bucketKey(sessionId, agentId))
+    if (bucket === undefined) return false
+    const slot = [...bucket]
+      .reverse()
+      .find((item) => item.recall.turn === input.turn && item.recall.messageId === messageId)
+    if (slot === undefined) return false
+    if (!slot.recall.hits.some((hit) => hit.id === memoryId)) return false
+    slot.recall.feedback = { ...(slot.recall.feedback ?? {}), [memoryId]: input.feedback }
+    return true
   }
 
   /** 清理一个会话/agent 的账本（agent/disposed）。 */
