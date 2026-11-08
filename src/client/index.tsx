@@ -60,17 +60,19 @@ interface ClientContext {
 /** 必需服务（浏览器侧 cordis fiber inject）。 */
 export const inject = ['slots', 'locale', 'configForms']
 
-/** 记忆浏览器的内联图标（不 import ui-primitives，保持 bundle 只外置 react）。 */
+/** 记忆浏览器的内联图标（不 import ui-primitives，保持 bundle 只外置 react）。
+ *  与包图标 `icon.svg` 同一母题：因果星图（三个记忆节点 + 连线），这里用 currentColor 单色。 */
 function MemoryGlyph(): ReactNode {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <path
-        d="M8 2.2c-2.1 0-3.6 1.2-3.6 2.9 0 .9.4 1.6 1.1 2.1-.7.5-1.1 1.2-1.1 2.1 0 1.7 1.5 2.9 3.6 2.9s3.6-1.2 3.6-2.9c0-.9-.4-1.6-1.1-2.1.7-.5 1.1-1.2 1.1-2.1C11.6 3.4 10.1 2.2 8 2.2Z"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinejoin="round"
-      />
-      <path d="M8 7.2v5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <g stroke="currentColor" strokeWidth="1.05" strokeLinecap="round" strokeOpacity="0.8">
+        <path d="M7.65 4.4 4.5 10.3" />
+        <path d="M7.65 4.4 11.85 9.4" />
+        <path d="M4.5 10.3 11.85 9.4" />
+      </g>
+      <circle cx="7.65" cy="4.4" r="1.75" fill="currentColor" />
+      <circle cx="4.5" cy="10.3" r="1.35" fill="currentColor" fillOpacity="0.9" />
+      <circle cx="11.85" cy="9.4" r="1.35" fill="currentColor" fillOpacity="0.9" />
     </svg>
   )
 }

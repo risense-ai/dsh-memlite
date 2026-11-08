@@ -200,7 +200,8 @@ Host/Origin 信任栅栏，仅 owner Peer 可用；Web 与桌面端共用，请�
 - [locale/zh.json](locale/zh.json) 与 [locale/en.json](locale/en.json) 的 `meta.title` / `meta.description`；
 - 缺失时回退 `package.json` 的 `name` / `description`，两者都没有才显示完整包名/模块名；
 - 需要 `exports["./locale/*.json"]` 与发布 `files` 收录这些文件，Host 才能读取；
-- 图标可在 `package.json` 声明 `"icon": "./icon.png"`（或导出 `./icon`）。
+- 图标由 `package.json` 的 `"icon": "./icon.svg"`（同时导出 `./icon`）声明；当前图标是绿色砖底 +
+  因果星图，与右侧 Guide「记忆」入口的字形同母题。
 
 改名称只动 locale JSON，不需要重写客户端代码；保存后重启对应插件行（本 profile 用 `set_bundle` 关/开）即可生效。
 

@@ -1,0 +1,33 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="dsh-memlite">
+  <!-- dsh-memlite brand mark: causal-memory constellation on a soft moss tile.
+       One artwork serves light and dark UI; the tile supplies its own contrast. -->
+  <defs>
+    <linearGradient id="ml-tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4C7F5B" />
+      <stop offset="1" stop-color="#2E553C" />
+    </linearGradient>
+    <radialGradient id="ml-breath" cx="48%" cy="36%" r="58%">
+      <stop offset="0" stop-color="#F7F5EA" stop-opacity="0.18" />
+      <stop offset="55%" stop-color="#F7F5EA" stop-opacity="0.05" />
+      <stop offset="1" stop-color="#F7F5EA" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+  <rect x="24" y="24" width="464" height="464" rx="112" fill="url(#ml-tile)" />
+  <rect x="24" y="24" width="464" height="464" rx="112" fill="url(#ml-breath)" />
+  <rect x="25.25" y="25.25" width="461.5" height="461.5" rx="110.75" fill="none" stroke="#F7F5EA" stroke-opacity="0.12" stroke-width="2.5" />
+  <!-- recall halo around the newest node -->
+  <circle cx="245" cy="140" r="88" fill="none" stroke="#F7F5EA" stroke-opacity="0.10" stroke-width="4" />
+  <circle cx="245" cy="140" r="66" fill="none" stroke="#F7F5EA" stroke-opacity="0.22" stroke-width="5" />
+  <!-- causal edges -->
+  <g stroke="#F7F5EA" stroke-opacity="0.92" stroke-width="15" stroke-linecap="round">
+    <path d="M245 140 L145 330" />
+    <path d="M245 140 L379 302" />
+    <path d="M145 330 L379 302" />
+  </g>
+  <!-- memory nodes -->
+  <g fill="#F7F5EA">
+    <circle cx="245" cy="140" r="44" />
+    <circle cx="145" cy="330" r="36" />
+    <circle cx="379" cy="302" r="36" />
+  </g>
+</svg>
