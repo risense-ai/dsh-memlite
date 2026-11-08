@@ -1,33 +1,39 @@
-/** 浏览器半区：注册契约（slot 键、locale、whileServed）与构建产物形状。 */
+/** 浏览器半区：注册契约（slot 键、locale、whileServed、右侧 Memory 页类型）与构建产物形状。 */
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { apply, inject } from '../src/client/index'
+import { MEMORY_TAB_ID, MEMORY_TAB_KIND, apply, inject } from '../src/client/index'
 import { MemliteConfigPage } from '../src/client/MemliteSettings'
 import { DEFAULTS } from '../src/client/form'
+import { MEMORY_LOCALE_NS } from '../src/client/memory-locales'
 
 interface Registered {
   name?: unknown
   key?: unknown
   locale?: unknown
+  inject?: unknown
 }
 
-function fakeClientContext(): {
+function fakeClientContext(options: { tabs?: boolean; cordisInject?: boolean } = {}): {
   ctx: Parameters<typeof apply>[0]
   registrations: Registered[]
+  tabDefinitions: Array<Record<string, unknown>>
   injectedSlots: string[]
+  injectedDeps: string[][]
   servedNamespaces: string[][]
   dictionaries: Record<string, unknown>
 } {
   const registrations: Registered[] = []
+  const tabDefinitions: Array<Record<string, unknown>> = []
   const injectedSlots: string[] = []
+  const injectedDeps: string[][] = []
   const servedNamespaces: string[][] = []
   const dictionaries: Record<string, unknown> = {}
 
-  const ctx = {
+  const ctx: Record<string, unknown> = {
     locale: {
       register: (namespace: string, dictionary: Record<string, unknown>) => {
         dictionaries[namespace] = dictionary
@@ -52,9 +58,32 @@ function fakeClientContext(): {
       },
     },
     effect: (run: () => (() => void) | void) => run() ?? (() => {}),
-  } as unknown as Parameters<typeof apply>[0]
+  }
+  if (options.tabs === true) {
+    ctx['sidebarRightTabs'] = {
+      register: (definition: Record<string, unknown>) => {
+        tabDefinitions.push(definition)
+        return () => {}
+      },
+    }
+  }
+  if (options.cordisInject === true) {
+    ctx['inject'] = (deps: string[], callback: (scoped: unknown) => void) => {
+      injectedDeps.push(deps)
+      callback(ctx)
+      return () => {}
+    }
+  }
 
-  return { ctx, registrations, injectedSlots, servedNamespaces, dictionaries }
+  return {
+    ctx: ctx as unknown as Parameters<typeof apply>[0],
+    registrations,
+    tabDefinitions,
+    injectedSlots,
+    injectedDeps,
+    servedNamespaces,
+    dictionaries,
+  }
 }
 
 describe('client half registration', () => {
@@ -66,6 +95,7 @@ describe('client half registration', () => {
     const fake = fakeClientContext()
     apply(fake.ctx)
     expect(fake.servedNamespaces).toEqual([['memlite']])
+    // 没有 sidebarRightTabs 服务时不出现记忆页相关注册
     expect(fake.injectedSlots).toEqual(['plugins.row.config'])
     expect(fake.registrations).toHaveLength(1)
     expect(fake.registrations[0]).toMatchObject({
@@ -73,7 +103,7 @@ describe('client half registration', () => {
       key: '@rsrsai/dsh-memlite#memlite',
       locale: 'memliteConfig',
     })
-    expect(Object.keys(fake.dictionaries)).toEqual(['memliteConfig'])
+    expect(Object.keys(fake.dictionaries)).toEqual(['memliteConfig', MEMORY_LOCALE_NS])
   })
 
   it('没有 whileServed 的老部署直接注册', () => {
@@ -82,6 +112,43 @@ describe('client half registration', () => {
     apply(fake.ctx)
     expect(fake.injectedSlots).toEqual(['plugins.row.config'])
     expect(fake.registrations).toHaveLength(1)
+  })
+})
+
+describe('memory tab registration', () => {
+  it('cordis inject 可用时等 sidebarRightTabs 后再注册页类型与页体', () => {
+    const fake = fakeClientContext({ tabs: true, cordisInject: true })
+    apply(fake.ctx)
+    expect(fake.injectedDeps).toEqual([['sidebarRightTabs']])
+    // 页类型：id/kind/priority + Guide 入口
+    expect(fake.tabDefinitions).toHaveLength(1)
+    const definition = fake.tabDefinitions[0]!
+    expect(definition['id']).toBe(MEMORY_TAB_ID)
+    expect(definition['kind']).toBe(MEMORY_TAB_KIND)
+    expect(definition['priority']).toBe('extension')
+    expect(typeof definition['title']).toBe('function')
+    const guide = definition['guide'] as Array<Record<string, unknown>>
+    expect(guide).toHaveLength(1)
+    expect(guide[0]?.['id']).toBe('memory')
+    expect(guide[0]?.['order']).toBe(40)
+    expect(typeof guide[0]?.['title']).toBe('function')
+    expect(typeof guide[0]?.['description']).toBe('function')
+    expect(typeof guide[0]?.['icon']).toBe('function')
+    // 页体：sidebar.right.pane.tab 键ed slot，注入 sessionId
+    expect(fake.injectedSlots).toContain('sidebar.right.pane.tab')
+    const body = fake.registrations.find((item) => item.name === 'sidebar.right.pane.tab')
+    expect(body).toBeDefined()
+    expect(body?.key).toBe(MEMORY_TAB_ID)
+    expect(body?.locale).toBe(MEMORY_LOCALE_NS)
+    expect(typeof body?.inject).toBe('function')
+    expect((body?.inject as (sessionId: string) => unknown)('session-1')).toEqual({ sessionId: 'session-1' })
+  })
+
+  it('没有 cordis inject 的宿主仍直接注册（sidebarRightTabs 存在即可）', () => {
+    const fake = fakeClientContext({ tabs: true })
+    apply(fake.ctx)
+    expect(fake.tabDefinitions).toHaveLength(1)
+    expect(fake.injectedSlots).toContain('sidebar.right.pane.tab')
   })
 })
 

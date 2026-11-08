@@ -21,7 +21,9 @@ import { registerMemoryTools } from './tools'
 import { contextMessage } from './messages'
 import { States } from './state'
 import { RULES, SKIP_PREFIX, SKILL_PREFIX, STORE_PREFIX, WRAP_UP, id8, titleOf } from './rules'
-import { renderRecallTitles } from './render'
+import { selectRecallTitles } from './render'
+import { RecallLedger, type RecallLedgerDraft } from './recall-ledger'
+import { registerMemoryRoutes } from './memory-routes'
 import { Config, readConfig, resolveConfigRef, type ConfigRef, type PluginConfig } from './schema'
 import { createObsidianHandlers, registerObsidianRoutes, type ConnectionService } from './obsidian'
 import {
@@ -105,6 +107,8 @@ export function apply(
   const mem = runtime.mem
   const states = new States()
   const disposers: Array<() => void> = []
+  /** M8c：会话召回账本（有界、内存、按会话隔离；不保存提示词）。 */
+  const ledger = new RecallLedger()
 
   // 1. 静态规则：与是否召回命中无关，恒定注入（volatile 关闭时按次返回空串）。
   context.inject(['systemPrompt'], (scoped) => {
@@ -134,12 +138,21 @@ export function apply(
     disposers.push(registerMemoryTools(tools, mem, enabled))
   })
 
-  // 3b. Obsidian 配置页路由：认证、Host/Origin 栅栏与 owner Peer 由 connection 负责。
+  // 3b. 配置页 / 记忆浏览器路由：认证、Host/Origin 栅栏与 owner Peer 由 connection 负责。
   context.inject(['connection'], (scoped) => {
     const connection = (scoped as unknown as Scoped).connection as ConnectionService | undefined
     if (!connection) return
     const handlers = createObsidianHandlers(() => runtime.mem)
     disposers.push(...registerObsidianRoutes(connection, handlers))
+    disposers.push(
+      ...registerMemoryRoutes(connection, {
+        getMem: () => runtime.mem,
+        getGeneration: () => runtime.generation,
+        isEnabled: enabled,
+        ledger,
+        log: (message) => context.logger?.warn?.(message),
+      }),
+    )
   })
 
   // 4. 召回 / 显式存储：pre-step waterfall，先等下游决策，再追加消息。
@@ -159,6 +172,37 @@ export function apply(
     const current = state.turn?.turn === turn ? state.turn : states.startTurn(state, turn)
     const additions: UserMessage[] = []
     const aborted = (): boolean => signal.aborted || lifetime.signal.aborted
+
+    // M8c 召回账本：本轮每条消息一条记录；只有 decision 真正返回时才落账（中止不写成功记录）。
+    // sessionId 取运行时稳定 Session id；取不到时按 agent 明示降级，不伪造关联。
+    const agentId = typeof agent.id === 'string' ? agent.id : ''
+    const session = (agent as { session?: { id?: unknown } }).session
+    const sessionId = typeof session?.id === 'string' ? session.id : ''
+    const drafts: RecallLedgerDraft[] = []
+    const draft = (params: {
+      messageId: string
+      status: RecallLedgerDraft['status']
+      skipReason?: RecallLedgerDraft['skipReason']
+      backend?: string
+      fallback?: string
+      hits?: RecallLedgerDraft['hits']
+    }): void => {
+      drafts.push({
+        sessionId,
+        agentId,
+        turn,
+        messageId: params.messageId,
+        backend: params.backend ?? '',
+        fallback: params.fallback ?? '',
+        status: params.status,
+        ...(params.skipReason !== undefined ? { skipReason: params.skipReason } : {}),
+        hits: params.hits ?? [],
+      })
+    }
+    const flushLedger = (): void => {
+      if (aborted()) return
+      for (const item of drafts.splice(0)) ledger.record(item)
+    }
 
     for (const raw of humans) {
       // 每条消息取一次快照：召回条数/阈值/预算等 volatile 字段即时生效。
@@ -211,12 +255,16 @@ export function apply(
         }
       }
 
-      if (SKIP_PREFIX.test(prompt)) continue
+      if (SKIP_PREFIX.test(prompt)) {
+        draft({ messageId, status: 'skipped', skipReason: 'nomem' })
+        continue
+      }
 
       // 敏感闸与 memlite 引擎同源（sensitiveGate=false 时自然放行）。
       try {
         mem.scanOrReject(prompt)
       } catch (error) {
+        draft({ messageId, status: 'skipped', skipReason: 'sensitive' })
         additions.push(
           contextMessage(`【memlite · 已跳过】输入疑似包含凭据，未用于召回或存储。${errorText(error)}`),
         )
@@ -227,6 +275,7 @@ export function apply(
       if (store) {
         const content = prompt.slice(store[0].length).trim()
         if (content === '') {
+          draft({ messageId, status: 'skipped', skipReason: 'store' })
           additions.push(contextMessage('【memlite · 未存】内容为空；请给出要存的事实。'))
           continue
         }
@@ -243,27 +292,41 @@ export function apply(
             contextMessage(`【memlite · 未存】${errorText(error)}。本条没有写入；不要自动重试，也不要声称成功。`),
           )
         }
+        draft({ messageId, status: 'skipped', skipReason: 'store' })
         continue
       }
 
-      if (prompt.length < cfg.minPromptChars) continue
+      if (prompt.length < cfg.minPromptChars) {
+        draft({ messageId, status: 'skipped', skipReason: 'short' })
+        continue
+      }
 
       const query = prompt.replace(SKILL_PREFIX, '').trim() || prompt
       try {
         const result = await mem.recall(query, { limit: cfg.recallLimit })
         if (aborted()) return decision
         state.ready = true
-        const text = renderRecallTitles(result, cfg.recallThreshold, cfg.budgetChars)
-        if (text !== '') additions.push(contextMessage(text))
+        const selection = selectRecallTitles(result, cfg.recallThreshold, cfg.budgetChars)
+        if (selection.text !== '') additions.push(contextMessage(selection.text))
+        draft({
+          messageId,
+          status: result.hits.length === 0 ? 'empty' : 'ok',
+          backend: String(result.backend ?? ''),
+          fallback: String(result.fallback ?? ''),
+          hits: selection.hits,
+        })
       } catch (error) {
         if (aborted()) return decision
+        draft({ messageId, status: 'error' })
         additions.push(
           contextMessage(`【memlite · 召回不可用】${errorText(error)}。未获得记忆；继续用当前材料。`),
         )
       }
     }
 
-    if (aborted() || additions.length === 0) return decision
+    if (aborted()) return decision
+    flushLedger()
+    if (additions.length === 0) return decision
     return { ...decision, messages: [...messages, ...additions] }
   })
 
@@ -287,10 +350,15 @@ export function apply(
     agent.steer(contextMessage(WRAP_UP))
   })
 
-  // 6. agent 销毁时清状态（WeakMap 本身可回收，显式 drop 更干净）。
+  // 6. agent 销毁时清状态（WeakMap 本身可回收，显式 drop 更干净）；M8c 召回账本同步清理。
   onEvent(context, 'agent/disposed', (payload) => {
-    const agent = (payload as { agent?: object } | undefined)?.agent
-    if (agent !== null && typeof agent === 'object') states.drop(agent)
+    const agent = (payload as { agent?: { id?: unknown; session?: { id?: unknown } } } | undefined)?.agent
+    if (agent === null || typeof agent !== 'object') return
+    states.drop(agent)
+    ledger.drop({
+      sessionId: typeof agent.session?.id === 'string' ? agent.session.id : '',
+      agentId: typeof agent.id === 'string' ? agent.id : '',
+    })
   })
 
   if (config().sync.auto) {
@@ -301,6 +369,7 @@ export function apply(
 
   return () => {
     runtime.dispose()
+    ledger.clear()
     for (const d of disposers.splice(0)) d()
   }
 }

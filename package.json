@@ -1,8 +1,8 @@
 {
   "name": "@rsrsai/dsh-memlite",
   "packageManager": "pnpm@9.15.0",
-  "version": "0.3.2",
-  "description": "DSH plugin: persistent local memory powered by @rsrsai/memlite (respire-aligned prompt/recall/wrap-up logic; JSONL causal tree, git sync, data-compatible with Rust memlite; Web GUI settings page).",
+  "version": "0.4.0",
+  "description": "DSH plugin: persistent local memory powered by @rsrsai/memlite (respire-aligned prompt/recall/wrap-up logic; JSONL causal tree, git sync, data-compatible with Rust memlite; Web GUI settings page and read-only memory browser).",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -42,7 +42,8 @@
       "inject": [
         "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-ui-settings",
-        "@deepseek-ai/dsh-client-ui-plugin-manager"
+        "@deepseek-ai/dsh-client-ui-plugin-manager",
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
       ]
     }
   },

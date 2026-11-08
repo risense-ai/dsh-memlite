@@ -14,6 +14,7 @@
 | M5 | Obsidian 整合（plan 修订新增） | 1 天 | ✅ 完成：三命令 + 空串守卫 + dry-run + *With 共享实例重载（上游 43 绿） |
 | M6 | 文档 + 发布 | 1 天 | ✅ 文档/CI 完成；**npm 发布与 Hub 提交待定**（依赖 @rsrsai/memlite 先上 npm） |
 | M7 | 自动捕获 | 后续 | 不在 0.1.0 范围 |
+| **M8a–M8c** | **聊天记忆浏览器（只读）** | **5 天** | **✅ 完成（2026-11-08，0.4.0）：右侧 Memory 页签 + 5 只读路由 + 召回账本；真机 UI 验收通过** |
 
 ---
 
@@ -139,3 +140,46 @@
 - [x] 配置改为 `enabled/recallLimit/recallThreshold/budgetChars/minPromptChars/storeNudgeEvery`
 - [x] 测试 44 → 57 全绿；`pnpm build`（ESM + d.ts）通过
 - [ ] 真机重载回归（desktop profile：显式存储回执 + 召回注入 + 收尾 steer）
+  —— M8 真机验收已在隔离 web profile 覆盖召回注入与面板链路；desktop profile 的显式存储回执仍未复验
+
+
+---
+
+## M8 聊天记忆浏览器（2026-11-08，0.4.0，只读）
+
+设计见 [proposal.md §十四](./proposal.md#十四聊天记忆浏览器m8-设计2026-11-08)，实现契约见 [m8-contract.md](./m8-contract.md)。
+
+### M8a 记忆浏览 MVP
+
+- [x] 宿主 API 按 **DSH 0.2.2-alpha.2** 核实：`ctx.sidebarRightTabs.register({id,kind,priority,title,guide})` + `sidebar.right.pane.tab` 键ed slot（`key`=页类型 id，`inject(sessionId)`）；`dsh.client.inject` 增列 `@deepseek-ai/dsh-client-ui-sidebar-right`
+- [x] 页类型 `@rsrsai/dsh-memlite/memory`（kind `memlite-memory`，priority `extension`）+ Guide 入口「记忆浏览器」；页体随插件 effect 卸载
+- [x] 面板三分层：`MemliteMemory.tsx`（视图/状态）、`memory-api.ts`（形状校验 + abort）、`memory-locales.ts`（zh/en）
+- [x] `src/browse.ts`：内存投影 / 项目·标签·重要性筛选 / keyset 游标（`ts:id`）/ 树逐层 / 字段白名单 / 摘要与正文限长
+- [x] `src/memory-routes.ts`：`list`、`search`、`show`、`tree`、`session-recalls` 五条 buffered POST；入参守卫 + 禁用 503 + 引擎异常 500 + `engine` 代次
+- [x] 列表仅摘要与元数据；详情纯文本（禁 `dangerouslySetInnerHTML`）+ 因果邻居 + 复制正文/id
+- [x] loading / 空库 / 无命中 / 禁用 / 失败 / 中止 / 已删除 状态；切换视图·会话·刷新·卸载 abort 在途请求
+- [x] 测试：路由注册与守卫、白名单、分页上限、筛选语义（含「（无）」）、客户端形状校验与状态判别、SSR 渲染
+
+### M8b 因果树浏览
+
+- [x] 有界 tree 路由（`parentId` 逐层，limit ≤200，`trimmed` 标记），不返回全深树
+- [x] 可折叠缩进树、节点选中、父子跳转；链视图复用 `mem.chain()`（深度 3、节点 ≤200）
+- [x] 空树 / 断链 / 环截断 / 大量子节点 / 窄栏不横向溢出；投影筛选下 `childCount` 与可展开子层一致
+- [x] 测试：根层/子层、limit 截断、未知父节点 400、项目筛选一致性
+
+### M8c 会话召回与验收
+
+- [x] `src/recall-ledger.ts`：有界内存账本，按 `sessionId` 隔离（`agent.session.id`），取不到时 `scope:'agent'` 明示降级；单会话 ≤100 / 全局 ≤500 / hits ≤50；`agent/disposed` 清理；插件重载清空
+- [x] `selectRecallTitles()`：阈值/预算筛选与注入文本**同一份结果**，账本 `injected/exclusion` 直接来自它；中止/reject 不落账
+- [x] 区分 injected / threshold / budget / empty / skipped（nomem·short·sensitive·store）/ error；不保存提示词
+- [x] 本次对话视图：回合倒序分组、注入徽章、分数、后端、时间、原记忆已删除（`exists:false`）、手动刷新
+- [x] `engine` 代次：结构性配置重建引擎后 +1，面板清详情并重载，避免读旧引擎
+- [x] `pnpm typecheck` / `pnpm test` / `pnpm build` 全绿；既有命令、召回、配置页、Obsidian 无回归
+- [x] 真机验收（隔离实例 `DSH_HOME=/tmp/dsh-m8-home` + `MEMLITE_DATA` 种子库 + headless Chrome/CDP）：
+      插件行激活、Guide 卡片、页签 chip「记忆」、三视图、空态/列表/详情/树展开、`已注入` 徽章、
+      `api/memlite/browser/*` 全 200、未认证 401、跨站 Origin 403、`plugins/??@rsrsai/dsh-memlite/client.js` 200
+- [x] 修复验收发现的缺陷：会话召回时间戳按秒存（界面曾显示 58822 年）、搜索「（无）」项目退化、
+      项目筛选下树 `childCount` 与实际子层不一致、503 被误判为「已禁用」、threshold 用例假绿、
+      分数上限截断（改为召回原始分）、面板时间显示 UTC（改为浏览器本地时区）
+- [ ] 发布（npm + Hub）单列，未随实现执行
+- [ ] Desktop 载体的人工交互复验（与 Web 共用 bundle，本轮仅 Web 覆盖）

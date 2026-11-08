@@ -32,6 +32,8 @@ export class MemoryRuntime {
   private readonly credentialResolver: CredentialResolver
   private readonly facade: Memlite
   private rebuilding = false
+  /** 引擎代次：结构性配置重建后 +1；记忆浏览器据此清理失效详情（不读旧引擎）。 */
+  private generationCounter = 1
 
   constructor(
     private readonly ctx: PluginContext,
@@ -58,6 +60,12 @@ export class MemoryRuntime {
     return this.facade
   }
 
+  /** 当前引擎代次（结构性配置变化重建引擎时递增）。 */
+  get generation(): number {
+    this.refresh()
+    return this.generationCounter
+  }
+
   /** 配置结构性字段变化时重建引擎；幂等，可安全地在每次访问时调用。 */
   refresh(): void {
     if (this.rebuilding) return
@@ -71,6 +79,7 @@ export class MemoryRuntime {
       const assembled = assembleMemlite(this.ctx, next, this.credentialResolver)
       this.assembled = assembled
       this.signature = signature
+      this.generationCounter += 1
       previous.dispose()
       if (next.enabled && next.sync.auto) {
         void assembled.mem

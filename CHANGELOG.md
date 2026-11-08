@@ -1,5 +1,53 @@
 # Changelog
 
+## 0.4.0 (2026-11-08)
+
+M8 聊天记忆浏览器（只读）：会话右侧 **Memory 页签**，三视图 + 5 条只读路由 + 会话召回账本。
+不新增模型请求、不把记忆卡片塞进消息流、不另建管理后台。**发布动作单列**（未随本次提交执行）。
+
+### 新能力
+
+- 右侧 Sidebar 页类型 `@rsrsai/dsh-memlite/memory`（kind `memlite-memory`）+ Guide 入口「Memlite 记忆」；
+  页体注册在 `sidebar.right.pane.tab`（key=页类型 id），`dsh.client.inject` 增加
+  `@deepseek-ai/dsh-client-ui-sidebar-right`；老宿主缺该服务时只跳过记忆页，配置页照常。
+- **本次对话**：按回合列出真实追加进上下文的召回（标题、已注入/低于阈值/预算截断、分数、后端、时间）；
+  注入状态与 `selectRecallTitles()` 同源，候选命中不冒充已使用；原记忆删除后保留标题并标「已删除」。
+- **全部记忆**：搜索 + 项目/标签/重要性筛选 + keyset 游标分页；列表仅标题/两行摘要/徽章，详情纯文本渲染 + 因果邻居 + 复制正文/id。
+- **因果树**：逐层展开（不一次取全深树）、父子跳转、断链/环截断提示、窄栏不横向溢出。
+- 5 条只读路由（`connection.fetch`，认证/信任栅栏/owner Peer 由宿主负责）：
+  - `POST /api/memlite/browser/list`
+  - `POST /api/memlite/browser/search`
+  - `POST /api/memlite/browser/show`
+  - `POST /api/memlite/browser/tree`
+  - `POST /api/memlite/browser/session-recalls`
+- 召回账本（M8c）：按 `sessionId` 隔离（取不到稳定 id 时明示 agent 级降级），单会话 ≤100 / 全局 ≤500 / 单条 hits ≤50；
+  不保存原始提示词、不暴露 querylog；`agent/disposed` 清理；插件重载即清空。
+- 引擎代次 `engine`：结构性配置（dataDir/embedding/sync/敏感闸）重建引擎后 +1，浏览器据此清空失效详情，不读旧引擎正文。
+
+### 安全与边界
+
+- 路由入参全部做形状/长度/枚举/上限校验（请求体 ≤64 KiB），错误文案不含路径/密钥/原始请求；
+  列表/搜索/树不返回正文，show 正文限 20k 字符；响应不含向量、凭据、`extra` 原字段、本地路径。
+- `enabled=false` 时路由统一 503 + `disabled:true`。
+- 客户端 bundle 仍只外置 `react` / `react/jsx-runtime`；详情禁止 `dangerouslySetInnerHTML`；
+  切换视图/会话/刷新/卸载时 AbortController 中止在途请求。
+
+### 质量
+
+- 新增 `tests/memory-routes.test.ts`（19）`tests/recall-ledger.test.ts`（11）`tests/client-memory.test.ts`（42）
+  `tests/memory-api-status.test.ts`（5）`tests/verification-m8.test.ts`（22，独立验收）；
+  更新 `tests/client-page.test.ts`（注册契约）、`tests/obsidian-routes.test.ts`（路由总数）。
+- 测试 81 → 182 例（13 文件）；`pnpm typecheck` / `pnpm test` / `pnpm build` 全绿。
+- 真机隔离实例（`DSH_HOME=/tmp` + `dsh plugin add .`）：插件行激活、登录态路由 200（`engine:1`）、
+  未认证 401、跨站 Origin 403、`plugins/??@rsrsai/dsh-memlite/client.js` 组合包 200。
+
+### 文档与后续
+
+- 新增 [`docs/m8-contract.md`](./docs/m8-contract.md)（Host↔Client 契约、实现偏差与真机实测记录）；README（含三张截图）/plan/proposal/progress 同步。
+- 真机验收修复：会话召回时间戳单位（曾显示 58822 年）、搜索项目「（无）」退化、项目筛选下树 childCount 假断链、
+  503 被误判为「已禁用」（引擎异常改 500）、分数上限截断（改为召回原始分）、threshold 用例假绿。
+- 后续：Desktop 载体人工复验（与 Web 共用 bundle）、npm 发布与 Hub 提交、M8d 写操作另行授权。
+
 ## 0.3.2 (2026-11-08)
 
 配置页 Obsidian 桥：在 GUI 里直接导入 / 导出 / 检查同步态。

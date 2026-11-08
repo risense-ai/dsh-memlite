@@ -115,9 +115,11 @@ export interface UserMessage {
   readonly source: { readonly kind: string }
 }
 
-/** agent/pre-step 载荷里的 agent 面（steer 由 turn-stopping 用）。 */
+/** agent/pre-step 载荷里的 agent 面（steer 由 turn-stopping 用；session 是运行时附加面）。 */
 export interface AgentLike {
   readonly id?: unknown
+  /** 运行时 Agent 的 Session（dsh-agent-loop：this.session；id 与 agent.id 同源）。 */
+  readonly session?: { readonly id?: unknown; readonly cwd?: unknown }
   steer?(message: UserMessage): unknown
 }
 

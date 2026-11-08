@@ -19,6 +19,14 @@ import {
   type StatusReport,
 } from '@rsrsai/memlite-obsidian'
 import type { Memlite } from '@rsrsai/memlite'
+import {
+  HttpError,
+  errorText,
+  json,
+  optionalBoolean,
+  optionalString as optionalText,
+  readJson,
+} from './http'
 
 export const OBSIDIAN_IMPORT_PATH = '/api/memlite/obsidian/import'
 export const OBSIDIAN_EXPORT_PATH = '/api/memlite/obsidian/export'
@@ -45,41 +53,7 @@ export interface ConnectionService {
   }
 }
 
-const MAX_REQUEST_BYTES = 64 * 1024
 const MAX_PATH_CHARS = 1000
-
-class HttpError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
-    super(message)
-    this.name = 'ObsidianHttpError'
-  }
-}
-
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
-
-function json(body: unknown, status = 200): Response {
-  return Response.json(body, { status })
-}
-
-function optionalText(value: unknown, field: string, max = 200): string | undefined {
-  if (value === undefined || value === null) return undefined
-  if (typeof value !== 'string') throw new HttpError(400, `${field} 必须是字符串`)
-  const text = value.trim()
-  if (text === '') return undefined
-  if (text.length > max) throw new HttpError(400, `${field} 过长`)
-  return text
-}
-
-function optionalBoolean(value: unknown, field: string): boolean {
-  if (value === undefined || value === null) return false
-  if (typeof value !== 'boolean') throw new HttpError(400, `${field} 必须是布尔值`)
-  return value
-}
 
 /** 路径守卫：非空、无 NUL、支持 ~ 展开，最后 resolve。 */
 export function resolvePathArg(raw: unknown, field: string): string {
@@ -148,30 +122,6 @@ export function formatStatusReport(report: StatusReport): string {
   if (rows.length > 20) lines.push(`  …另 ${rows.length - 20} 行`)
   if (rows.length === 0) lines.push('  （全部同步）')
   return lines.join('\n')
-}
-
-async function readJson(request: Request): Promise<Record<string, unknown>> {
-  const declared = Number(request.headers.get('content-length') ?? '')
-  if (Number.isFinite(declared) && declared > MAX_REQUEST_BYTES) {
-    throw new HttpError(413, '请求体过大')
-  }
-  let text: string
-  try {
-    text = await request.text()
-  } catch {
-    throw new HttpError(400, '读取请求体失败')
-  }
-  if (text.length > MAX_REQUEST_BYTES) throw new HttpError(413, '请求体过大')
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(text)
-  } catch {
-    throw new HttpError(400, '请求体不是合法 JSON')
-  }
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new HttpError(400, '请求体必须是对象')
-  }
-  return parsed as Record<string, unknown>
 }
 
 export interface ObsidianHttpHandlers {

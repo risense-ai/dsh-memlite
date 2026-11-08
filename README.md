@@ -5,14 +5,16 @@
 
 ## 状态
 
-✅ **0.3.2 GUI 配置页 + Obsidian 桥 + 本地化展示名**（2026-11-08）：在侧栏「插件」页的 **Memlite 记忆**行打开**配置**，
-可视化编辑全部字段并直接导入/导出 Obsidian vault；保存写入 profile 的 `cordis.patch.yml`，展示名/描述由 `locale/` 的 `meta` 提供。
-其余行为保持 0.2.0 架构（静态规则、pre-step 召回、status 体检、敏感闸、显式存储 + 读回、收尾 steer、模型工具、16 命令）。
-81 例测试（79 通过 + 2 既有 skip）；`pnpm build` 同时产出宿主与浏览器 bundle。
+✅ **0.4.0 聊天记忆浏览器（M8a–M8c，只读）**（2026-11-08）：会话右侧新增 **Memory 页签**——
+**本次对话**（真实注入的召回、注入状态/分数/后端）、**全部记忆**（搜索 + 项目/标签/重要性筛选 + 游标分页 + 详情/复制）、
+**因果树**（逐层展开、父子跳转、断链/环截断）。不需要命令、不把记忆卡片塞进消息流、不新增模型请求。
+同时保留 0.3.2 的 GUI 配置页 + Obsidian 桥 + 本地化展示名，以及 0.2.0 架构
+（静态规则、pre-step 召回、status 体检、敏感闸、显式存储 + 读回、收尾 steer、模型工具、16 命令）。
+182 例测试（13 个文件；其中 2 例依赖 `dist/` 的构建产物测试在未构建时自动 skip）；`pnpm build` 同时产出宿主与浏览器 bundle。
 
 ## 与 respire-dsh 的差别
 
-| 面 | respire-dsh | dsh-memlite（0.3.2） |
+| 面 | respire-dsh | dsh-memlite（0.4.0） |
 |---|---|---|
 | 引擎 | `rsrs` CLI 子进程 + 常驻 Runtime（Node 24+） | 进程内 `@rsrsai/memlite`，零子进程 |
 | 模型读写 | 模型用 shell 跑 `rsrs` | 5 个 `memlite_*` 工具 |
@@ -52,6 +54,8 @@
 4. **模型工具**：`memlite_recall` / `memlite_show` / `memlite_remember` / `memlite_update` / `memlite_attach`
    —— 等价于 respire 让模型执行 rsrs CLI 的那条通道。
 5. **命令面**：原 16 个 `/memlite-*` 不变（recall/remember/show/tree/chain/import/export…）。
+6. **记忆浏览器**：会话右侧 Memory 页签（只读）——本次对话召回账本、全库搜索/筛选/分页、因果树；
+   经 `connection.fetch` 的 5 条只读路由取数，认证/信任栅栏由宿主负责，浏览器不直接读文件。
 
 ### 命令参考
 
@@ -82,11 +86,45 @@
 - 📌 **脱手注入**：pre-step 召回，标题级、预算内，不占 tool 调用
 - 🧾 **可追溯写入**：显式存储带读回校验；失败/未存都有模型可见回执
 - 🛠️ **模型工具面**：召回、展开、写入、更新、挂链
+- 🧭 **聊天记忆浏览器**：右侧 Memory 页签，三视图只读浏览——本次对话命中与注入状态、全库搜索/筛选/分页、因果树逐层展开；不需要命令
 - 📝 **Obsidian 整合**：`/memlite-import`、`/memlite-export`、`/memlite-vault-status`
 - 🔐 **密钥安全**：`credentials.resolve(ref)` 注入，永不入配置/数据仓/日志
 - 📦 **项目级隔离**：项目级 `.memlite/` 优先，用户级回退
 - 🔄 **git 同步**：白名单 + pathspec commit（不卷走用户暂存）+ sha 双通道核验
 - 🛡️ **敏感闸**：写前扫描密码/密钥/身份证/银行卡/手机号/JWT/PEM，命中即拒
+
+## 记忆浏览器（M8a–M8c，只读）
+
+不用记命令和 id，在聊天右侧直接回答三个问题：**本轮用了哪些记忆、库里有什么、记忆之间怎么因果相连**。
+
+**打开**：会话右上角展开右侧栏 → Guide 里的 **Memlite 记忆** 入口；或从右侧栏的加号打开 Guide 后再点它。
+面板随会话显示，沿用 DSH 的展开/分栏/悬浮/全屏能力；关闭页签不删数据。
+
+| 视图 | 内容 |
+|---|---|
+| **本次对话** | 按回合倒序列出真实追加进本轮上下文的记忆：标题、**已注入/低于阈值/预算截断**徽章、召回分数、后端与时间；无活动时简洁空态 |
+| **全部记忆** | 标题/正文/标签检索，项目/标签/重要性筛选，最近排序，游标分页；列表只给标题 + 两行摘要 + 徽章；选中读全文（纯文本渲染）与因果邻居，可复制正文 / 复制 id |
+| **因果树** | 从根层开始的缩进树，逐层展开/收起（不一次取全深树）；点击节点看详情，父子/邻居可跳转；断链与环有截断提示，窄栏不横向溢出 |
+
+- **只读**：编辑/删除/改挂/手动存入（M8d）未开放；所有数据经 Memlite 主类读取，插件不读 JSONL。
+- **注入状态可核对**：账本与自动注入的 `selectRecallTitles()` 用**同一份**阈值/预算结果，候选命中不会被显示成「已使用」；
+  原记忆被删除后会话历史仍保留当时的标题并标「原记忆已删除」。
+- **有界 + 会话隔离**：账本按 `sessionId` 隔离（拿不到稳定 sessionId 时明示按 agent 降级）；单会话 ≤100 条、全局 ≤500 条，
+  单条 hits ≤50；不保存原始提示词、不暴露 querylog。
+- **数据白名单**：5 条只读路由（`api/memlite/browser/{list,search,show,tree,session-recalls}`），列表/搜索/树不返回正文，
+  show 正文限长；响应不含向量、凭据、本地路径或未筛选的 `extra`。
+- **认证与信任**：路由经宿主 `connection.fetch`，浏览器认证 / Host-Origin 栅栏 / owner Peer 校验由 DSH 负责；
+  关闭插件（`enabled=false`）时统一回 503 + 禁用态。
+- **配置切换**：结构性配置（`dataDir`/embedding/sync/敏感闸）重建引擎后 `engine` 代次 +1，面板清空失效详情并重读，不显示旧引擎正文。
+
+![本次对话：本轮真正注入的记忆、注入状态与分数](./docs/images/memory-session.png)
+
+![全部记忆：搜索、项目/标签/重要性筛选、分页与详情](./docs/images/memory-all.png)
+
+![因果树：逐层展开的父子链，可跳转详情](./docs/images/memory-tree.png)
+
+实现契约与验收对照见 [`docs/m8-contract.md`](./docs/m8-contract.md)；数据接口见
+[`src/browser-contract.ts`](./src/browser-contract.ts)。
 
 ## 配置
 
@@ -150,13 +188,14 @@ Host/Origin 信任栅栏，仅 owner Peer 可用；Web 与桌面端共用，请�
 
 ## 安装
 
-发布版（npm `@rsrsai/dsh-memlite@0.3.2`）：
+发布版（npm `@rsrsai/dsh-memlite@0.4.0`，M8 发布动作单列）：
 
 ```bash
 dsh plugin --profile <profile> add @rsrsai/dsh-memlite
 ```
 
 装好后在侧栏「插件」→「Memlite 记忆」→「配置」；默认值即可用。日常说「记：」即可，不必背命令。
+记忆浏览器随插件加载，无需额外配置（宿主需 DSH 0.2.2-alpha.2+，提供右侧栏页类型注册面）。
 
 本地开发装载（在仓库根目录）：
 
@@ -178,11 +217,16 @@ dsh plugin --profile <profile> add .
 - **AssembleContext**：类型面无 `agent` 字段，运行时实传 `{agent, scope, signal}`，按防御性读取处理。
 - **无 providers 服务**：`dsh-llm` 只有 chat，无 embeddings；host 嵌入档明示回退。
 - **COMMAND_NAME**：单 token 正则，命令名含空格注册即拒。
+- **右侧栏页类型（M8）**：宿主 0.2.2-alpha.2 提供 `ctx.sidebarRightTabs.register({id,kind,priority,title,guide})`
+  与 `sidebar.right.pane.tab` 键ed slot（key=页类型 id，`inject(sessionId)` 注入当前会话）；
+  `dsh.client.inject` 需列 `@deepseek-ai/dsh-client-ui-sidebar-right`，客户端 bundle 仍只外置 react / react/jsx-runtime。
+- **记忆浏览器路由**：隔离实例真机实测——登录态 `POST /api/memlite/browser/list` 返回 200 + `engine`；
+  未认证 401、跨站 Origin 403；`plugins/??@rsrsai/dsh-memlite/client.js` 组合包 200 且为 ModuleLoader factory 形状。
 
 ## 测试
 
 ```bash
-pnpm test   # 81 例：真 cordis 核 + 形状忠实宿主服务替身 + 配置表单/Obsidian 路由/浏览器半区契约
+pnpm test   # 182 例：真 cordis 核 + 形状忠实宿主服务替身 + 配置表单/Obsidian 路由/记忆浏览器（Host+Client）+ 独立验收
 ```
 
 ## 协议

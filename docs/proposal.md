@@ -419,6 +419,16 @@ M0 spike 用官方 npm 包在真机（macOS，dsh CLI + web/headless profile）�
 
 ## 十四、聊天记忆浏览器（M8 设计，2026-11-08）
 
+> **实施状态（2026-11-08，0.4.0）**：M8a–M8c 已按本节落地（只读）。宿主版本 **DSH 0.2.2-alpha.2**
+> （`ctx.sidebarRightTabs.register` + `sidebar.right.pane.tab` 键ed slot），实现契约与实测记录见
+> [m8-contract.md](./m8-contract.md)。与设计的两处偏差：
+> 1. **列表/筛选未新增 memlite-js 公开方法**——主类已有公开 `store` getter 与 `list/tree/chain`，
+>    插件的筛选/游标/投影在 Host 侧内存实现（`src/browse.ts`），未改上游包；
+> 2. **召回账本的 `timestamp` 为秒级**（与 `MemRecord.ts` 同口径），UI 直接 ×1000 渲染。
+> 新增可核对事实：`engine` 代次（结构性配置重建 +1）用于清空失效详情；503 仅表示禁用（带
+> `disabled:true`），引擎异常用 500，避免客户端误判。
+
+
 ### 14.1 目标与入口
 
 让用户无需记忆命令和 id，即可在聊天中回答三个问题：本轮用到了哪些记忆、库里保存了什么、各条记忆如何形成因果链。

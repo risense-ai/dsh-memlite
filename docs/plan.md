@@ -16,11 +16,11 @@
 | M4 | 嵌入档接入 | 1 天 | ✅ 已完成 | host + openai-compatible 装配，credentials 集成 |
 | **M5** | **Obsidian 整合** | **1 天** | **✅ 已完成（2026-11-07）** | `/memlite-import` `/memlite-export` `/memlite-vault-status` 三命令 |
 | M6 | 文档 + 发布 | 1 天 | 待启动 | README + CHANGELOG + npm 发布 + Hub 提交 |
-| **M8a** | **记忆浏览 MVP** | **2 天** | **方案已写，待启动** | 聊天右侧 Memory 页签 + 全部记忆 + 搜索筛选 + 详情（只读） |
-| **M8b** | **因果树浏览** | **1 天** | **方案已写，待启动** | 可折叠树 + 因果邻居 + 链跳转（只读） |
-| **M8c** | **会话召回与验收** | **2 天** | **方案已写，待启动** | 本次对话命中 + 注入状态 + 会话隔离 + 真机 UI 验收 |
+| **M8a** | **记忆浏览 MVP** | **2 天** | **✅ 已完成（2026-11-08）** | 右侧 Memory 页签 + 全部记忆 + 搜索筛选 + 详情（只读） |
+| **M8b** | **因果树浏览** | **1 天** | **✅ 已完成（2026-11-08）** | 可折叠树逐层加载 + 因果邻居 + 链跳转（只读） |
+| **M8c** | **会话召回与验收** | **2 天** | **✅ 已完成（2026-11-08，真机 UI 验收通过）** | 本次对话命中 + 注入状态 + 会话隔离 + 5 只读路由 |
 
-M7（自动捕获 autoCapture）放到下一阶段，**不在 0.1.0 范围**。M8（聊天记忆浏览器）是已设计、未实施的后续里程碑；设计见 [proposal.md §十四](./proposal.md#十四聊天记忆浏览器m8-设计2026-11-08)。
+M7（自动捕获 autoCapture）放到下一阶段，**不在 0.1.0 范围**。M8（聊天记忆浏览器）M8a–M8c 已实现（0.4.0，只读）；设计见 [proposal.md §十四](./proposal.md#十四聊天记忆浏览器m8-设计2026-11-08)，实现契约与验收对照见 [m8-contract.md](./m8-contract.md)。
 
 **说明**：原 M5（文档+发布）顺延为 M6。Obsidian 整合作为 M5 提前到发布前——让用户开箱即可把已有 vault 转成本插件的记忆库，**这是拉新入口**。
 
@@ -287,42 +287,44 @@ memlite-obsidian 的 `importVault`/`exportVault` 内部会 open/close 自己的 
 
 ---
 
-## M8 聊天记忆浏览器（5 天，后续阶段）
+## M8 聊天记忆浏览器（5 天，0.4.0 已实现 M8a–M8c）
 
 **目标**：用户在聊天右侧即可浏览本轮使用的记忆、全库记忆与因果结构；不依赖命令，不侵入聊天消息流。详细交互与安全契约见 [proposal.md §十四](./proposal.md#十四聊天记忆浏览器m8-设计2026-11-08)。
 
 **范围**：M8a–M8c 全部只读；编辑、删除、改挂和手动存入留到 M8d，另行授权与细化。不新增独立管理后台，不改变现有召回或 Obsidian 行为。
 
+**实施状态**：M8a–M8c 已完成（2026-11-08，0.4.0）。宿主 API 按 DSH **0.2.2-alpha.2** 实测（`sidebarRightTabs.register` + `sidebar.right.pane.tab` 键ed slot）；`memlite-js` 主类已有 `store` 公开 getter 与 `list/tree/chain`，未改上游，投影/筛选在插件侧有界实现（`src/browse.ts`）。详细契约见 [m8-contract.md](./m8-contract.md)。
+
 ### M8a 记忆浏览 MVP（2 天）
 
-- [ ] 按实施时宿主版本核实 `sidebarRightTabs` / `sidebar.right.pane.tab` 签名与所需 client inject，最小 spike 真机挂载和卸载
-- [ ] 在现有 `src/client/` 中拆分 `MemliteMemory` 面板及列表、筛选、详情组件，复用 locale 和 DSH 主题变量
-- [ ] 注册右侧 Memory 页类型与 Guide 入口；保持页签展开、分栏、悬浮及卸载生命周期由宿主管理
-- [ ] 新增 `src/memory-routes.ts`：list/search/show 只读路由，复用 `connection.fetch` 和 `() => runtime.mem`，不直接读 JSONL
-- [ ] 在 memlite-js 主类补公开、有界列表/筛选能力（如现有 API 不足），插件不绕过主类访问底层实现
-- [ ] 实现项目、标签、重要性筛选，最近/相关度排序，搜索与游标分页/增量加载；列表仅传摘要和元数据
-- [ ] 实现全文详情、因果邻居入口、复制正文/id；使用安全 Markdown/纯文本渲染，不注入 HTML
-- [ ] 实现加载、空库、无命中、禁用、失败、请求中止与记忆已删除状态
-- [ ] 测试路由白名单、输入边界、分页上限、响应字段、宿主认证接线，以及组件的加载/空/错误路径
+- [x] 按实施时宿主版本核实 `sidebarRightTabs` / `sidebar.right.pane.tab` 签名与所需 client inject（0.2.2-alpha.2 权威 README + 真机 Guide/页签挂载实跑）
+- [x] 在现有 `src/client/` 中拆分 `MemliteMemory` 面板及列表、筛选、详情组件，复用 locale 和 DSH 主题变量（`MemliteMemory.tsx` + `memory-api.ts` + `memory-locales.ts`）
+- [x] 注册右侧 Memory 页类型与 Guide 入口；保持页签展开、分栏、悬浮及卸载生命周期由宿主管理（`src/client/index.tsx`）
+- [x] 新增 `src/memory-routes.ts`：list/search/show/tree/session-recalls 只读路由，复用 `connection.fetch` 和 `() => runtime.mem`，不直接读 JSONL
+- [x] memlite-js 主类已有公开 `store` getter 与 `list/tree/chain`；未改上游，投影/筛选/游标在插件侧有界实现（`src/browse.ts`）
+- [x] 实现项目、标签、重要性筛选，最近排序，搜索与游标分页/增量加载；列表仅传摘要和元数据
+- [x] 实现全文详情、因果邻居入口、复制正文/id；纯文本渲染（`<pre>`），不注入 HTML
+- [x] 实现加载、空库、无命中、禁用、失败、请求中止与记忆已删除状态
+- [x] 测试路由白名单、输入边界、分页上限、响应字段、宿主认证接线，以及组件的加载/空/错误路径
 
 ### M8b 因果树浏览（1 天）
 
-- [ ] 新增有界 tree 路由，按需取子层，不一次返回全库全文或全深树
-- [ ] 实现可折叠缩进树、节点选中、父子跳转和完整链查看；复用 `mem.tree({mode:'json'})` / `mem.chain()`
-- [ ] 处理空树、断链、环截断、大量子节点和窄侧栏；首版不做力导向图谱
-- [ ] 测试树投影、深度限制、环/断链、节点跳转与卸载后的请求取消
+- [x] 新增有界 tree 路由，按 parentId 逐层取子层（limit ≤200），不一次返回全库全文或全深树
+- [x] 实现可折叠缩进树、节点选中、父子跳转和完整链查看；链视图用 `mem.chain()`（深度 3、节点 ≤200）
+- [x] 处理空树、断链、环截断、大量子节点和窄侧栏；首版不做力导向图谱
+- [x] 测试树投影、深度限制、环/断链、节点跳转与卸载后的请求取消
 
 ### M8c 会话召回与验收（2 天）
 
-- [ ] 新增按 `sessionId + agentId + turn + messageId` 关联的有界内存召回账本；先验证运行时稳定 sessionId，无法取得则明示 agent 级降级，不伪造关联
-- [ ] 将 `renderRecallTitles()` 的阈值/预算筛选与注入消息生成收敛为同一份结果，在成功追加 `decision.messages` 后标记已注入
-- [ ] 区分已注入、阈值排除、预算截断、空召回、跳过和失败；中止不写成功记录，不保存原始提示词
-- [ ] 新增 session-recalls 只读路由，保证项目、会话、agent 隔离；`agent/disposed` 清理，设单会话与全局容量上限
-- [ ] 实现本次对话视图、回合分组、原记忆删除状态和手动刷新；首版不持久化检索历史，不向普通用户暴露 querylog
-- [ ] 配置/引擎切换后清理失效详情与请求，保证不读旧引擎、不串会话
-- [ ] 运行 `pnpm typecheck`、`pnpm test`、`pnpm build`；验证既有命令、召回、配置和 Obsidian 测试不回归
-- [ ] 真机验收 DSH Web/Desktop：并排浏览、搜索、详情、树、会话切换、展开/收起、分栏、刷新、错误态和窄栏溢出
-- [ ] 更新 README、CHANGELOG、使用截图和 `docs/plan-progress.md`；发布单列为后续动作，不随实现自动执行
+- [x] 新增按 `sessionId + agentId + turn + messageId` 关联的有界内存召回账本（`src/recall-ledger.ts`）；运行时 `agent.session.id` 可取，取不到时明示 `scope:'agent'` 降级，不伪造关联
+- [x] 将 `renderRecallTitles()` 的阈值/预算筛选收敛为 `selectRecallTitles()` 一份结果，注入消息与账本 `injected/exclusion` 同源；成功返回 decision 后落账
+- [x] 区分已注入、阈值排除、预算截断、空召回、跳过和失败；中止/reject 不写成功记录，不保存原始提示词
+- [x] 新增 session-recalls 只读路由，按会话/agent 隔离；`agent/disposed` 清理，单会话 ≤100 / 全局 ≤500 / 单条 hits ≤50
+- [x] 实现本次对话视图、回合分组、原记忆删除状态和手动刷新；不持久化检索历史，不向普通用户暴露 querylog
+- [x] 配置/引擎切换（`engine` 代次 +1）后清理失效详情与请求，保证不读旧引擎、不串会话
+- [x] 运行 `pnpm typecheck`、`pnpm test`、`pnpm build`；既有命令、召回、配置和 Obsidian 测试不回归
+- [x] 真机验收（DSH Web 0.2.2-alpha.2 隔离实例 + headless Chrome）：面板注册、Guide 入口、三视图、下拉/空态、召回账本注入与刷新、5 条路由 200、时间戳、窄栏截图；Desktop 未覆盖（与 Web 同 bundle）
+- [x] 更新 README、CHANGELOG、`docs/m8-contract.md` 与 `docs/plan-progress.md`；发布单列为后续动作，不随实现自动执行
 
 ### M8d 写操作（后续，不在本里程碑）
 
@@ -346,6 +348,17 @@ memlite-obsidian 的 `importVault`/`exportVault` 内部会 open/close 自己的 
 - [ ] 与 Rust memlite 库互通（插件能读 Rust 写的库）
 - [ ] 多 agent 不串味
 - [ ] 密钥全程不出现在 cordis.yml / 数据仓 / 日志
+
+### 0.4.0（M8 记忆浏览器）验收对照
+
+- [x] 右侧 Memory：浏览/筛选/检索/翻页/全文/复制均无需命令（真机 Guide 入口 + 三视图实跑）
+- [x] 空库/无命中/禁用/引擎失败/中止/已删除均有可理解状态，无无限加载（SSR + 真机空态）
+- [x] 项目/会话/agent 不串数据；配置切换后不读旧引擎/旧正文（`engine` 代次 + 会话隔离测试）
+- [x] 树展开/收起/父子跳转/断链环截断；窄栏无横向溢出（真机展开子层 + 样式断言）
+- [x] 已注入/未注入有测试对照，候选不得显示为已使用（threshold/budget 双种对照）
+- [x] 响应不含向量/凭据/querylog/完整路径；未认证沿用宿主拒绝（真机 401/403 + 白名单测试）
+- [x] 既有召回/命令/配置/Obsidian 不回归；浏览不新增模型请求（全量测试 + 路由均为内存读）
+- [x] `pnpm typecheck`、`pnpm test`、`pnpm build`；Web 真机验收（Desktop 人工复验待做，共用 bundle）
 
 ### 关键度量
 

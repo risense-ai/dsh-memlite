@@ -1,15 +1,21 @@
 /**
- * 浏览器半区入口：把 memlite 配置页注册进侧栏「插件」页的行详情。
+ * 浏览器半区入口（两个面）：
+ * 1. 配置页：注册进侧栏「插件」页的行详情（`plugins.row.config`）。
+ * 2. 记忆浏览器：注册右侧 Sidebar 的 Memory 页类型（`ctx.sidebarRightTabs`）与页体
+ *    （`sidebar.right.pane.tab`，键=页类型 id），Guide 里出现入口。
  *
- * 组合方式（来自 @deepseek-ai/dsh-client-modules 与 ui-plugin-manager 文档）：
+ * 组合方式（来自 @deepseek-ai/dsh-client-modules 与 ui-plugin-manager / ui-sidebar-right 文档）：
  * - package.json `dsh.client` 声明 platform=web，导出 `./client` bundle；
  * - bundle 由 Loader 行（id `memlite`，模块 `@rsrsai/dsh-memlite`）挂载，行停用即卸载；
  * - 行配置 slot 的键是 `<包名>#<行 id>`，即 `@rsrsai/dsh-memlite#memlite`；
- * - 页面只在 settings 服务真的提供 `memlite` 命名空间时注册（避免出现不可用的“配置”入口）。
+ * - 页面只在 settings 服务真的提供 `memlite` 命名空间时注册（避免出现不可用的“配置”入口）；
+ * - `sidebarRightTabs` 用可选注入：老宿主没有该服务时配置页照常工作，记忆页不注册。
  */
 import type { ReactNode } from 'react'
 import { MemliteConfigPage, type PageProps } from './MemliteSettings'
 import { locales } from './locales'
+import { MemliteMemoryPanel } from './MemliteMemory'
+import { MEMORY_LOCALE_NS, memoryLocales } from './memory-locales'
 
 /** settings 命名空间 = profile 条目 id（bundle patch 里 insert 的行 id）。 */
 const ENTRY_ID = 'memlite'
@@ -17,6 +23,10 @@ const ENTRY_ID = 'memlite'
 const NS = 'memliteConfig'
 /** 行配置 slot 的键：包名#行 id。 */
 const ROW_CONFIG_KEY = '@rsrsai/dsh-memlite#memlite'
+/** 记忆浏览器页类型 id（页类型/页体的键）。 */
+export const MEMORY_TAB_ID = '@rsrsai/dsh-memlite/memory'
+/** 记忆浏览器页类型 kind。 */
+export const MEMORY_TAB_KIND = 'memlite-memory'
 
 interface LocaleService {
   register(namespace: string, dictionaries: Record<string, Record<string, string>>): () => void
@@ -32,20 +42,102 @@ interface ConfigFormsService {
   whileServed?(namespaces: string[], register: () => () => void): () => void
 }
 
+/** 右侧 Sidebar 页类型注册面（dsh-client-ui-sidebar-right 的 `ctx.sidebarRightTabs`）。 */
+interface SidebarRightTabsService {
+  register(definition: Record<string, unknown>): () => void
+}
+
 interface ClientContext {
   readonly locale: LocaleService
   readonly slots: SlotsService
   readonly configForms?: ConfigFormsService
+  readonly sidebarRightTabs?: SidebarRightTabsService
   effect(effect: () => (() => void) | void, label?: string): () => void
+  /** cordis 可选服务注入（宿主是 cordis context 时存在；测试替身可缺省）。 */
+  inject?(deps: string[], callback: (scoped: ClientContext) => void): unknown
 }
 
 /** 必需服务（浏览器侧 cordis fiber inject）。 */
 export const inject = ['slots', 'locale', 'configForms']
 
+/** 记忆浏览器的内联图标（不 import ui-primitives，保持 bundle 只外置 react）。 */
+function MemoryGlyph(): ReactNode {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M8 2.2c-2.1 0-3.6 1.2-3.6 2.9 0 .9.4 1.6 1.1 2.1-.7.5-1.1 1.2-1.1 2.1 0 1.7 1.5 2.9 3.6 2.9s3.6-1.2 3.6-2.9c0-.9-.4-1.6-1.1-2.1.7-.5 1.1-1.2 1.1-2.1C11.6 3.4 10.1 2.2 8 2.2Z"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+      <path d="M8 7.2v5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+/**
+ * 注册 Memory 页类型与页体。
+ *
+ * 页类型：Guide 收录一个入口，点它按 kind 打开本页；
+ * 页体：`sidebar.right.pane.tab` 的键ed slot，slot 框架把 `sessionId` 与
+ * `useTabInfo` 等 hooks 作为 props 注入（`inject` 返回值合并进 props）。
+ * 两处注册都放进 `scoped.effect`，随插件卸载一起消失。
+ */
+export function registerMemoryTab(scoped: ClientContext): void {
+  const tabs = scoped.sidebarRightTabs
+  // 老宿主没有右侧栏页类型注册面：记忆页整体不注册，配置页不受影响。
+  if (tabs === undefined) return
+
+  const t = scoped.locale.bind(MEMORY_LOCALE_NS)
+  scoped.effect(
+    () =>
+      tabs.register({
+        id: MEMORY_TAB_ID,
+        kind: MEMORY_TAB_KIND,
+        priority: 'extension',
+        title: () => t('tab.title'),
+        guide: [
+          {
+            id: 'memory',
+            order: 40,
+            title: () => t('guide.title'),
+            description: () => t('guide.description'),
+            icon: MemoryGlyph,
+          },
+        ],
+      }),
+    'memlite: memory tab type',
+  )
+
+  scoped.effect(
+    () =>
+      scoped.slots.inject('sidebar.right.pane.tab', () =>
+        scoped.slots.register(
+          {
+            name: 'sidebar.right.pane.tab',
+            key: MEMORY_TAB_ID,
+            locale: MEMORY_LOCALE_NS,
+            inject: (sessionId: string) => ({ sessionId }),
+          },
+          MemliteMemoryPanel as (props: PageProps) => ReactNode,
+        ),
+      ),
+    'memlite: memory tab body',
+  )
+}
+
 export function apply(ctx: ClientContext): void {
   ctx.effect(
     () => ctx.locale.register(NS, locales as unknown as Record<string, Record<string, string>>),
     'memlite: config page dictionaries',
+  )
+  ctx.effect(
+    () =>
+      ctx.locale.register(
+        MEMORY_LOCALE_NS,
+        memoryLocales as unknown as Record<string, Record<string, string>>,
+      ),
+    'memlite: memory browser dictionaries',
   )
 
   const registerPage = (): (() => void) =>
@@ -67,4 +159,13 @@ export function apply(ctx: ClientContext): void {
     }
     return registerPage()
   }, 'memlite: config page')
+
+  // 记忆浏览器：只在宿主提供 sidebarRightTabs 时注册；老宿主上配置页不受影响。
+  ctx.effect(() => {
+    if (typeof ctx.inject === 'function') {
+      ctx.inject(['sidebarRightTabs'], (scoped) => registerMemoryTab(scoped as ClientContext))
+      return
+    }
+    registerMemoryTab(ctx)
+  }, 'memlite: memory browser tab')
 }
