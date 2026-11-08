@@ -197,7 +197,7 @@ export const inject = ['credentials', 'commands', 'systemPrompt', 'providers'] a
 | memlite-js | memlite-obsidian | dsh-memlite | 策略 |
 |---|---|---|---|
 | 0.1.0 | 0.1.0 | 0.1.0 | 起点 |
-| 0.2.0 | 0.1.0 | 0.5.0 | 条件写/revision；dsh-memlite 使用 `pnpm.overrides` 统一引擎版本 |
+| 0.2.0 | 0.1.0 | 0.5.0 | 条件写/revision；仓库测试用 `pnpm.overrides` 统一引擎版本，插件向 `*With` 传入 0.2.0 实例（结构兼容） |
 | 0.1.x | 0.1.x | 0.1.x | 跟随；bug 修复直通 |
 | 0.2.0 | 0.2.0 | 0.2.0 | 评估新能力，决定是否暴露 |
 | 1.0.0 | 1.0.0 | 1.0.0 | 同步 major；契约变更须文档化 |

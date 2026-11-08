@@ -201,3 +201,12 @@
 - [x] README/CHANGELOG/contract/integration/plan 更新
 - [ ] 聊天回复内嵌折叠条：宿主无稳定 reply-action slot，未挂载（不伪造宿主挂载点）
 - [ ] Desktop 载体人工复验（Web/Desktop 共用 bundle，本地预览覆盖交互）
+
+### 0.5.0 发布核验（2026-11-08）
+
+- [x] `@rsrsai/memlite@0.2.0` 已发 npm（dist-tags latest=0.2.0）与 GitHub release
+- [x] `@rsrsai/dsh-memlite@0.5.0` 已发 npm：dist-tags latest=0.5.0，tarball HTTP 200，
+      shasum `77d4285e6884e65a5a7ea596fe62af0ca594dc1c`，9 文件
+- [x] GitHub release `v0.5.0`（非 draft/prerelease）
+- [x] tag CI 两 run 全绿（test + publish，OIDC provenance）
+- [x] Pages 未触发：`site/**` 无改动，线上站点无需更新
