@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#f8f6f2" />
-<meta name="description" content="dsh-memlite（Memlite 记忆）— DeepSeek Harness 的持久本地记忆插件：pre-step 召回、因果树、GUI 配置页、敏感闸、git 同步，与 Rust memlite 数据互通。" />
+<meta name="description" content="dsh-memlite（Memlite 记忆）— DeepSeek Harness 的长期记忆插件：自动想起相关旧事、记下重要结论、按前因后果整理；默认只存本机，可选私有同步。" />
 <title>dsh-memlite（Memlite 记忆）— DeepSeek Harness 的持久本地记忆</title>
 <style>
   :root {
@@ -53,7 +53,7 @@
   .nav a:hover { color: var(--accent); }
 
   /* Hero */
-  .hero { padding: 64px 0 48px; text-align: center; }
+  .hero { padding: 64px 24px 48px; text-align: center; }
   .hero h1 { font-size: clamp(28px, 5vw, 42px); line-height: 1.25; font-weight: 800; letter-spacing: 0.5px; }
   .hero h1 .accent { color: var(--accent); }
   .hero p.sub { margin: 16px auto 0; max-width: 640px; color: var(--ink-soft); font-size: 17px; }
@@ -70,6 +70,64 @@
   }
   .cta a.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
   .cta a:hover { opacity: 0.92; }
+
+  /* 首屏能力卡 */
+  .hero-points {
+    margin-top: 36px; display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 14px; text-align: left;
+  }
+  .hero-point {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; padding: 18px;
+  }
+  .hero-point .icon { font-size: 18px; margin-bottom: 8px; }
+  .hero-point h3 { font-size: 15px; margin-bottom: 6px; }
+  .hero-point p { font-size: 13.5px; color: var(--ink-soft); }
+  @media (max-width: 820px) {
+    .hero-points { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 520px) {
+    .hero-points { grid-template-columns: 1fr; }
+  }
+
+  /* 示例：一条记忆长什么样 */
+  .example {
+    margin-top: 22px; background: var(--card); border: 1px solid var(--line);
+    border-radius: 14px; padding: 22px; display: grid;
+    grid-template-columns: 1.1fr 1fr; gap: 22px; align-items: center; text-align: left;
+  }
+  .example h3 { font-size: 16px; margin-bottom: 8px; }
+  .example .story p { font-size: 14px; color: var(--ink-soft); }
+  .example .story p + p { margin-top: 8px; }
+  .memory-card { border: 1px solid var(--line); border-radius: 12px; padding: 16px; background: #fbfaf7; }
+  .memory-card .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+  .memory-card .tag { font-size: 12px; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 2px 9px; }
+  .memory-card h4 { font-size: 15px; margin-bottom: 6px; }
+  .memory-card p { font-size: 13.5px; color: var(--ink-soft); }
+  .memory-card .chain { margin-top: 10px; font-size: 12.5px; color: var(--accent); }
+  @media (max-width: 720px) { .example { grid-template-columns: 1fr; } }
+
+  /* 为什么可信 */
+  .trust { margin-top: 22px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .trust li { list-style: none; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; font-size: 14px; color: var(--ink-soft); }
+  .trust li b { color: var(--ink); display: block; margin-bottom: 4px; }
+  @media (max-width: 640px) { .trust { grid-template-columns: 1fr; } }
+
+  /* 怎么开始 */
+  .start-grid { margin-top: 22px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .start-card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+  .start-card h3 { font-size: 16px; margin-bottom: 8px; }
+  .start-card p, .start-card li { font-size: 14px; color: var(--ink-soft); }
+  .start-card ul { margin: 8px 0 0 18px; }
+  .start-card .link { display: inline-block; margin-top: 12px; color: var(--accent); font-weight: 600; text-decoration: none; }
+  .start-card .link:hover { text-decoration: underline; }
+  @media (max-width: 720px) { .start-grid { grid-template-columns: 1fr; } }
+
+  /* 常见问题 */
+  .faq { margin-top: 20px; }
+  .faq details { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; margin-bottom: 10px; }
+  .faq summary { cursor: pointer; font-weight: 600; font-size: 14.5px; }
+  .faq p { margin-top: 8px; font-size: 14px; color: var(--ink-soft); }
 
   /* 注入时序图 */
   .flow { margin: 46px auto 0; max-width: 820px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 26px 18px 14px; }
@@ -117,7 +175,7 @@
 
   @media (max-width: 640px) {
     .nav a { margin-left: 12px; }
-    .hero { padding: 44px 0 32px; }
+    .hero { padding: 44px 24px 32px; }
     th, td { padding: 8px 10px; }
   }
 </style>
@@ -138,10 +196,10 @@
       dsh-memlite
     </div>
     <nav>
-      <a href="#how" data-zh>机制</a><a href="#how" data-en style="display:none">How</a>
-      <a href="#commands" data-zh>命令</a><a href="#commands" data-en style="display:none">Commands</a>
-      <a href="#config" data-zh>配置</a><a href="#config" data-en style="display:none">Config</a>
-      <a href="#m0" data-zh>实测记</a><a href="#m0" data-en style="display:none">Field notes</a>
+      <a href="#how" data-zh>它能做什么</a><a href="#how" data-en style="display:none">What it does</a>
+      <a href="#trust" data-zh>为什么可信</a><a href="#trust" data-en style="display:none">Why trust it</a>
+      <a href="#start" data-zh>怎么开始</a><a href="#start" data-en style="display:none">Get started</a>
+      <a href="#faq" data-zh>常见问题</a><a href="#faq" data-en style="display:none">FAQ</a>
       <a href="https://github.com/risense-ai/dsh-memlite" data-zh>GitHub</a><a href="https://github.com/risense-ai/dsh-memlite" data-en style="display:none">GitHub</a>
     </nav>
   </div>
@@ -149,284 +207,237 @@
 
 <div class="wrap hero">
   <h1>
-    <span data-zh>给你的 Harness 一棵<span class="accent">会生长的记忆树</span></span>
-    <span data-en style="display:none">A <span class="accent">growing memory tree</span> for your Harness</span>
+    <span data-zh>会记住、会整理，只属于你的<span class="accent"> AI 记忆</span></span>
+    <span data-en style="display:none">AI memory that remembers, organizes, and <span class="accent">stays yours</span></span>
   </h1>
   <p class="sub">
-    <span data-zh>dsh-memlite 把 memlite 的因果树记忆装进 DeepSeek Harness：每轮 <code>agent/pre-step</code> 同步召回，标题级记忆以 <code>source=memlite</code> 的 user 消息追加——不占 tool 调用；规则 section 恒定注入。侧栏「插件」里还有完整的图形配置页。数据落本地 JSONL，与 Rust memlite 双向互通。</span>
-    <span data-en style="display:none">dsh-memlite brings memlite's causal-tree memory into DeepSeek Harness: synchronous recall in <code>agent/pre-step</code> appends title-level memories as <code>source=memlite</code> user messages — no tool calls — while a static rules section is always injected. A full GUI settings page ships in Sidebar → Plugins. Data stays as local JSONL and interoperates with Rust memlite.</span>
+    <span data-zh>下次新开对话，不用再重复讲一遍背景。dsh-memlite 会自动想起相关旧事、记下重要结论，再按前因后果整理好。默认只存在本机，不联网也能用。</span>
+    <span data-en style="display:none">Start a new chat without repeating yourself. dsh-memlite brings back relevant past context, records important conclusions, and organizes them by cause and effect. It stays on your machine and works offline by default.</span>
   </p>
   <div class="badges">
-    <span class="badge">v0.3.2</span>
-    <span class="badge" data-zh>GUI 配置页</span><span class="badge" data-en style="display:none">GUI settings</span>
-    <span class="badge" data-zh>16 个命令</span><span class="badge" data-en style="display:none">16 commands</span>
-    <span class="badge" data-zh>5 个模型工具</span><span class="badge" data-en style="display:none">5 model tools</span>
-    <span class="badge" data-zh>与 Rust 互通</span><span class="badge" data-en style="display:none">Rust-compatible</span>
-    <span class="badge" data-zh>Obsidian 导入/导出</span><span class="badge" data-en style="display:none">Obsidian import/export</span>
-    <span class="badge gray">81 测试</span>
-    <span class="badge gray">MIT</span>
+    <span class="badge" data-zh>免费开源</span><span class="badge" data-en style="display:none">Free & open source</span>
+    <span class="badge" data-zh>只存本机</span><span class="badge" data-en style="display:none">Stored locally</span>
+    <span class="badge" data-zh>可选私有同步</span><span class="badge" data-en style="display:none">Optional private sync</span>
+    <span class="badge" data-zh>适合 Obsidian 用户</span><span class="badge" data-en style="display:none">For Obsidian users</span>
   </div>
   <div class="cta">
-    <a class="primary" href="#install" data-zh>开始使用</a><a class="primary" href="#install" data-en style="display:none">Get started</a>
-    <a href="https://github.com/risense-ai/dsh-memlite" data-zh>查看源码</a><a href="https://github.com/risense-ai/dsh-memlite" data-en style="display:none">Source</a>
+    <a class="primary" href="#start" data-zh>开始使用</a><a class="primary" href="#start" data-en style="display:none">Get started</a>
+    <a href="#example" data-zh>先看一个例子</a><a href="#example" data-en style="display:none">See an example</a>
   </div>
 
-  <div class="flow" id="how">
-    <svg viewBox="0 0 760 210" role="img" aria-label="pre-step recall timing">
-      <defs>
-        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-          <path d="M0,0 L10,5 L0,10 z" fill="#6b675f"/>
-        </marker>
-      </defs>
-      <g font-family="ui-monospace, Menlo, monospace" font-size="13" fill="#2b2a27">
-        <rect x="16"  y="44" width="112" height="48" rx="10" fill="#eef3ee" stroke="#3e6b4f"/>
-        <text x="72"  y="64" text-anchor="middle">user message</text>
-        <text x="72"  y="81" text-anchor="middle" fill="#6b675f" font-size="11" data-zh>用户消息</text>
-        <text x="72"  y="81" text-anchor="middle" fill="#6b675f" font-size="11" data-en style="display:none">user message</text>
+  <div class="hero-points">
+    <div class="hero-point">
+      <div class="icon">🧠</div>
+      <h3 data-zh>自动想起</h3><h3 data-en style="display:none">Auto recall</h3>
+      <p data-zh>开始新对话时，相关的旧记忆会自己回到对话里——不用搜索，也不用重复交代。</p>
+      <p data-en style="display:none">When a new chat starts, relevant memories return to the conversation by themselves — no searching, no repeating yourself.</p>
+    </div>
+    <div class="hero-point">
+      <div class="icon">📝</div>
+      <h3 data-zh>自动记录</h3><h3 data-en style="display:none">Auto record</h3>
+      <p data-zh>说一句「记：」，或让 AI 在每轮回答结束时整理；重要结论会写下来并核对，不会“以为记住了”。</p>
+      <p data-en style="display:none">Say “remember:”, or let the AI wrap up after each answer: key conclusions are written and checked, so “I thought it saved” does not happen.</p>
+    </div>
+    <div class="hero-point">
+      <div class="icon">🌳</div>
+      <h3 data-zh>自动整理</h3><h3 data-en style="display:none">Auto organize</h3>
+      <p data-zh>记忆按「前因 → 后果」连起来；每轮回答结束时检查同主题、合并重复，越用越有条理。</p>
+      <p data-en style="display:none">Memories link as cause → effect. After each answer the AI checks related entries and merges duplicates, so the picture gets clearer over time.</p>
+    </div>
+    <div class="hero-point">
+      <div class="icon">🔒</div>
+      <h3 data-zh>数据隐私</h3><h3 data-en style="display:none">Private by default</h3>
+      <p data-zh>默认只存本机，不联网也能用；可选同步到你自己的私有空间，敏感信息写入前先拦下。</p>
+      <p data-en style="display:none">Stored on your machine and works offline. Optional sync to your own private space; secrets are blocked before they are written.</p>
+    </div>
+  </div>
 
-        <rect x="158" y="44" width="168" height="48" rx="10" fill="#eef3ee" stroke="#3e6b4f"/>
-        <text x="242" y="64" text-anchor="middle">agent/pre-step</text>
-        <text x="242" y="81" text-anchor="middle" fill="#6b675f" font-size="11" data-zh>召回 + 体检 + 敏感闸</text>
-        <text x="242" y="81" text-anchor="middle" fill="#6b675f" font-size="11" data-en style="display:none">recall + status + gate</text>
-
-        <rect x="356" y="44" width="150" height="48" rx="10" fill="#eef3ee" stroke="#3e6b4f"/>
-        <text x="431" y="64" text-anchor="middle">source=memlite</text>
-        <text x="431" y="81" text-anchor="middle" fill="#6b675f" font-size="11" data-zh>标题 + id8 追加</text>
-        <text x="431" y="81" text-anchor="middle" fill="#6b675f" font-size="11" data-en style="display:none">title + id8 appended</text>
-
-        <rect x="536" y="44" width="100" height="48" rx="10" fill="#f4f1ea" stroke="#a08c5a"/>
-        <text x="586" y="64" text-anchor="middle">assemble</text>
-        <text x="586" y="81" text-anchor="middle" fill="#6b675f" font-size="11">rules section</text>
-
-        <rect x="666" y="44" width="78" height="48" rx="10" fill="#f4f1ea" stroke="#a08c5a"/>
-        <text x="705" y="73" text-anchor="middle">LLM step</text>
-
-        <rect x="158" y="148" width="168" height="34" rx="17" fill="#ffffff" stroke="#e5e0d6"/>
-        <text x="242" y="170" text-anchor="middle" fill="#3e6b4f" font-size="12" data-zh>turn-stopping 收尾自查</text>
-        <text x="242" y="170" text-anchor="middle" fill="#3e6b4f" font-size="12" data-en style="display:none">turn-stopping wrap-up</text>
-
-        <rect x="400" y="148" width="272" height="34" rx="17" fill="#ffffff" stroke="#e5e0d6"/>
-        <text x="536" y="170" text-anchor="middle" fill="#3e6b4f" font-size="12">tools: recall / show / remember / update / attach</text>
-
-        <line x1="128" y1="68" x2="152" y2="68" stroke="#6b675f" stroke-width="1.4" marker-end="url(#arr)"/>
-        <line x1="326" y1="68" x2="350" y2="68" stroke="#6b675f" stroke-width="1.4" marker-end="url(#arr)"/>
-        <line x1="506" y1="68" x2="530" y2="68" stroke="#6b675f" stroke-width="1.4" marker-end="url(#arr)"/>
-        <line x1="636" y1="68" x2="660" y2="68" stroke="#6b675f" stroke-width="1.4" marker-end="url(#arr)"/>
-        <path d="M242 92 L242 148" stroke="#3e6b4f" stroke-width="1.2" stroke-dasharray="4 4" fill="none" marker-end="url(#arr)"/>
-        <path d="M705 92 C 705 128, 692 146, 674 160" stroke="#3e6b4f" stroke-width="1.2" stroke-dasharray="4 4" fill="none" marker-end="url(#arr)"/>
-      </g>
-    </svg>
-    <p class="cap">
-      <span data-zh>召回发生在 <code>agent/pre-step</code>，用预算/阈值裁到标题级后作为 user 消息追加，不占 tool 调用；<code>memlite:rules</code>（order 850）恒定注入 9 条行为契约。turn-stopping 每轮最多一次收尾提醒，不查库。</span>
-      <span data-en style="display:none">Recall runs in <code>agent/pre-step</code>, trimmed by budget/threshold to title level and appended as a user message — no tool call. <code>memlite:rules</code> (order 850) always injects the 9 behavior rules. turn-stopping nudges at most once per turn and never reads the store.</span>
-    </p>
+  <div class="example" id="example">
+    <div class="story">
+      <h3 data-zh>它会记住什么？</h3><h3 data-en style="display:none">What does it remember?</h3>
+      <p data-zh>上周，客户 A 在会议里确认：报价统一按含税口径展示，折扣另列。</p>
+      <p data-zh>这周新开对话，你问「客户 A 的报价怎么报？」——它先把这条旧事想起来，再回答。</p>
+      <p data-en style="display:none">Last week, client A confirmed in a meeting: quotes show tax-inclusive prices, with discounts listed separately.</p>
+      <p data-en style="display:none">This week, in a brand-new chat, you ask “How should I quote client A?” It brings this back before answering.</p>
+    </div>
+    <div class="memory-card">
+      <div class="tags">
+        <span class="tag" data-zh>客户 A</span><span class="tag" data-en style="display:none">Client A</span>
+        <span class="tag" data-zh>报价</span><span class="tag" data-en style="display:none">Quote</span>
+      </div>
+      <h4 data-zh>客户 A 确认含税报价口径</h4><h4 data-en style="display:none">Client A confirmed tax-inclusive quotes</h4>
+      <p data-zh>报价单统一按含税价展示，折扣单独列出。</p>
+      <p data-en style="display:none">Quotes show tax-inclusive prices; discounts are listed separately.</p>
+      <div class="chain" data-zh>来龙去脉：会议确认 → 客户拍板 → 本周沿用</div>
+      <div class="chain" data-en style="display:none">Trail: meeting → client confirmed → reused this week</div>
+    </div>
   </div>
 </div>
 
 <div class="wrap">
-  <section>
-    <h2><span class="no">01</span><span data-zh>它做什么</span><span data-en style="display:none">What it does</span></h2>
-    <p class="lead" data-zh>六个机制，全部落在你自己的机器上。</p>
-    <p class="lead" data-en style="display:none">Six mechanisms, all on your own machine.</p>
+  <section id="how">
+    <h2><span class="no">01</span><span data-zh>它能做什么</span><span data-en style="display:none">What it does</span></h2>
+    <p class="lead" data-zh>六件事，全部发生在你自己的机器上。</p>
+    <p class="lead" data-en style="display:none">Six things, all on your own machine.</p>
     <div class="grid">
       <div class="card"><div class="icon">🧠</div>
-        <h3 data-zh>pre-step 召回</h3><h3 data-en style="display:none">pre-step recall</h3>
-        <p data-zh>每轮在 <code>agent/pre-step</code> 同步召回，按条数/阈值/字符预算裁到标题级，以 <code>source=memlite</code> 的 user 消息追加——零 tool 调用。正文按需用 <code>memlite_show</code> 展开。</p>
-        <p data-en style="display:none">Synchronous recall in <code>agent/pre-step</code>: trimmed by count/threshold/char budget to title level and appended as a <code>source=memlite</code> user message — zero tool calls. Expand bodies on demand with <code>memlite_show</code>.</p>
+        <h3 data-zh>自动想起</h3><h3 data-en style="display:none">Auto recall</h3>
+        <p data-zh>每次新对话开始，自动找出相关的旧记忆放进对话；只带标题，不占篇幅；需要细节时 AI 再展开全文。</p>
+        <p data-en style="display:none">At the start of each new chat, relevant memories are pulled into the conversation automatically. Only titles go in; the AI expands full text when needed.</p>
       </div>
       <div class="card"><div class="icon">🌳</div>
-        <h3 data-zh>因果树</h3><h3 data-en style="display:none">Causal tree</h3>
-        <p data-zh>记忆是父子链：父=因、子=果。命中即见前因后果，防环 64 层封顶；/memlite-chain 一把取回整条链。</p>
-        <p data-en style="display:none">Memories form parent-child chains: parent = cause, child = effect. Hits show their causes and effects; cycles capped at 64 levels; /memlite-chain retrieves a whole chain.</p>
+        <h3 data-zh>来龙去脉</h3><h3 data-en style="display:none">Cause & effect</h3>
+        <p data-zh>一条记忆可以挂在前因后面，形成「前因 → 后果」的线索。想起一条，就能看到它从哪来、导致了什么。</p>
+        <p data-en style="display:none">A memory can hang under its cause, forming a cause → effect trail. One hit shows where it came from and what followed.</p>
       </div>
       <div class="card"><div class="icon">⚙️</div>
-        <h3 data-zh>GUI 配置页</h3><h3 data-en style="display:none">GUI settings</h3>
-        <p data-zh>侧栏「插件」→ Memlite 记忆行 → <b>配置</b>。插件自带浏览器半区，表单暂存草稿、只读生效值，保存才写入 profile 的 <code>cordis.patch.yml</code>；召回参数即时生效，目录/嵌入/同步变化自动重建引擎。</p>
-        <p data-en style="display:none">Sidebar → Plugins → the Memlite Memory row → <b>Configure</b>. The plugin ships its own browser half: the form stages a draft, shows effective values, and only Save writes the profile's <code>cordis.patch.yml</code>. Recall parameters apply live; directory/embedding/sync changes rebuild the engine.</p>
+        <h3 data-zh>图形配置页</h3><h3 data-en style="display:none">Visual settings</h3>
+        <p data-zh>在侧栏「插件」里点开配置，常用选项直接勾选；保存后立即生效，不用改配置文件。</p>
+        <p data-en style="display:none">Open settings from the Plugins sidebar and click through the common options. Changes apply immediately — no config files to edit.</p>
       </div>
       <div class="card"><div class="icon">🛡️</div>
-        <h3 data-zh>敏感闸</h3><h3 data-en style="display:none">Sensitive gate</h3>
-        <p data-zh>写前扫描明文口令、API 密钥、身份证、银行卡（Luhn）、手机号、JWT、PEM 私钥——命中即拒，提示改存位置指针。</p>
-        <p data-en style="display:none">Pre-write scan for plaintext passwords, API keys, ID numbers, bank cards (Luhn), phone numbers, JWT, PEM keys — hits are rejected with a pointer suggestion.</p>
+        <h3 data-zh>敏感信息保护</h3><h3 data-en style="display:none">Secret protection</h3>
+        <p data-zh>写入前先检查密码、API 密钥、身份证、银行卡等敏感内容；命中就拒绝，并建议只记存放位置。</p>
+        <p data-en style="display:none">Before writing, passwords, API keys, ID numbers, bank cards and similar secrets are checked; hits are rejected with a suggestion to store only a location reference.</p>
       </div>
       <div class="card"><div class="icon">📝</div>
-        <h3 data-zh>Obsidian 桥</h3><h3 data-en style="display:none">Obsidian bridge</h3>
-        <p data-zh>配置页的 <b>Obsidian 桥</b> 可直接预览/导入 vault、把记忆库导出为 vault、检查 synced/outdated/missing；<code>/memlite-import</code>、<code>/memlite-export</code> 做同样的事。单向工具，不是双向同步。</p>
-        <p data-en style="display:none">The <b>Obsidian bridge</b> in the settings page previews/imports a vault, exports the library as a vault, and checks synced/outdated/missing states; <code>/memlite-import</code> and <code>/memlite-export</code> do the same. One-way tools, not two-way sync.</p>
+        <h3 data-zh>适合 Obsidian 用户</h3><h3 data-en style="display:none">For Obsidian users</h3>
+        <p data-zh>把 Obsidian 笔记导入记忆库，或把记忆导出成笔记；也能检查哪些已同步、哪些过期。单向工具，不是双向同步。</p>
+        <p data-en style="display:none">Import Obsidian notes into memory, or export memories as notes; check what is synced, outdated or missing. One-way only — not two-way sync.</p>
       </div>
       <div class="card"><div class="icon">🔄</div>
-        <h3 data-zh>git 同步</h3><h3 data-en style="display:none">Git sync</h3>
-        <p data-zh>白名单 add + pathspec commit（不卷走你已暂存的改动）+ rebase --autostash + push 后 ls-remote 双通道 sha 核验。</p>
-        <p data-en style="display:none">Whitelist add + pathspec commit (never sweeps your staged work) + rebase --autostash + push with ls-remote dual-channel sha verification.</p>
+        <h3 data-zh>私有同步</h3><h3 data-en style="display:none">Private sync</h3>
+        <p data-zh>想换电脑时，把记忆库同步到你自己的私有空间；只提交记忆文件，不会带走你未提交的改动。需要一点 Git 基础。</p>
+        <p data-en style="display:none">Moving to another computer? Sync the library to your own private space. Only memory files are committed — your staged work is left alone. A little Git knowledge helps.</p>
       </div>
     </div>
   </section>
 
-  <section id="interop">
-    <h2><span class="no">02</span><span data-zh>互通与取舍</span><span data-en style="display:none">Interop & trade-offs</span></h2>
-    <p class="lead" data-zh>存储就是 memory.jsonl + emb.f32 侧车——Rust memlite CLI 写的库，插件直接读；插件写的库，Rust 直接 recall。同一份记忆，CLI、Harness、AstrBot 共享。</p>
-    <p class="lead" data-en style="display:none">Storage is plain memory.jsonl + an emb.f32 sidecar — libraries written by the Rust memlite CLI read directly in the plugin and vice versa. One memory, shared across the CLI, Harness, and AstrBot.</p>
-    <p class="lead" data-zh style="margin-top:10px">同门的 <a href="https://github.com/risense-ai/respire-dsh">respire-dsh</a> 是另一条产品线：它驱动 <code>rsrs</code> 加密引擎，本插件用进程内 memlite 引擎；数据格式不互通，按下面的取舍二选一。</p>
-    <p class="lead" data-en style="display:none;margin-top:10px">Its sibling <a href="https://github.com/risense-ai/respire-dsh">respire-dsh</a> is a separate line: it drives the encrypted <code>rsrs</code> engine, while this plugin runs the in-process memlite engine. The data formats do not interoperate — choose one by the trade-offs below.</p>
-    <table>
-      <tr><th></th><th><a href="https://github.com/risense-ai/respire-dsh">respire-dsh</a></th><th>dsh-memlite</th></tr>
-      <tr>
-        <td data-zh>引擎</td><td data-en style="display:none">Engine</td>
-        <td><span data-zh><code>rsrs</code> CLI 子进程 + 常驻 Runtime（Node 24+）</span><span data-en style="display:none"><code>rsrs</code> CLI subprocess + resident Runtime (Node 24+)</span></td>
-        <td><b><span data-zh>进程内 <code>@rsrsai/memlite</code>，零子进程</span><span data-en style="display:none">In-process <code>@rsrsai/memlite</code>, no subprocess</span></b></td>
-      </tr>
-      <tr>
-        <td data-zh>模型读写</td><td data-en style="display:none">Model I/O</td>
-        <td><span data-zh>模型用 shell 跑 <code>rsrs</code></span><span data-en style="display:none">Model runs <code>rsrs</code> via shell</span></td>
-        <td><b><span data-zh>5 个 <code>memlite_*</code> 工具</span><span data-en style="display:none">Five <code>memlite_*</code> tools</span></b></td>
-      </tr>
-      <tr>
-        <td data-zh>存储</td><td data-en style="display:none">Storage</td>
-        <td><span data-zh>加密 SQLite（<code>~/.rsrs/rsrs.db</code>）</span><span data-en style="display:none">Encrypted SQLite (<code>~/.rsrs/rsrs.db</code>)</span></td>
-        <td><b><span data-zh>明文 JSONL + <code>emb.f32</code> 侧车</span><span data-en style="display:none">Plaintext JSONL + <code>emb.f32</code> sidecar</span></b></td>
-      </tr>
-      <tr>
-        <td data-zh>同步</td><td data-en style="display:none">Sync</td>
-        <td><span data-zh>密文云同步（服务端不持密钥）</span><span data-en style="display:none">Ciphertext cloud sync (server holds no keys)</span></td>
-        <td><b><span data-zh>git 白名单同步</span><span data-en style="display:none">git whitelist sync</span></b></td>
-      </tr>
-      <tr>
-        <td data-zh>项目隔离</td><td data-en style="display:none">Project scope</td>
-        <td><span data-zh>单库 + <code>project</code> 范围过滤</span><span data-en style="display:none">One library + <code>project</code> filter</span></td>
-        <td><b><span data-zh>项目级库目录 + 用户级回退</span><span data-en style="display:none">Project-level directory + user fallback</span></b></td>
-      </tr>
-      <tr>
-        <td data-zh>命令面</td><td data-en style="display:none">Commands</td>
-        <td><span data-zh>无斜杠命令，走 <code>rsrs</code> CLI</span><span data-en style="display:none">No slash commands; use the <code>rsrs</code> CLI</span></td>
-        <td><b><span data-zh>16 个 <code>/memlite-*</code></span><span data-en style="display:none">16 <code>/memlite-*</code> commands</span></b></td>
-      </tr>
-      <tr>
-        <td data-zh>生态</td><td data-en style="display:none">Ecosystem</td>
-        <td><span data-zh>12 个宿主插件共用同一 <code>rsrs</code> 库</span><span data-en style="display:none">12 host plugins share one <code>rsrs</code> library</span></td>
-        <td><b><span data-zh>Harness / CLI / AstrBot / Obsidian 桥；Rust / TS / Python 数据互通</span><span data-en style="display:none">Harness / CLI / AstrBot / Obsidian bridge; Rust / TS / Python interop</span></b></td>
-      </tr>
-      <tr>
-        <td data-zh>评测</td><td data-en style="display:none">Bench</td>
-        <td><span data-zh>自建中文集 hit@5=78.7%（2026-09，277 题）；LongMemEval 未跑</span><span data-en style="display:none">In-house 277-case set, hit@5=78.7% (2026-09); LongMemEval not run</span></td>
-        <td><b><span data-zh>BM25 hit@1=85%（与 Rust memlite 对齐）</span><span data-en style="display:none">BM25 hit@1=85% (aligned with Rust memlite)</span></b></td>
-      </tr>
-      <tr>
-        <td data-zh>共同点</td><td data-en style="display:none">Shared</td>
-        <td colspan="2"><span data-zh>规则注入 · pre-step 召回 · 状态体检 · 敏感闸 · 读回校验 · 收尾 steer · 失败回执</span><span data-en style="display:none">Rules injection · pre-step recall · status check · sensitive gate · read-back verification · wrap-up steer · failure receipts</span></td>
-      </tr>
-    </table>
-    <div class="note">
-      <span data-zh>评测口径不同：respire-dsh 行是自建中文真库 277 题，dsh-memlite 行是 BM25 基准集；两者不构成同题横比。</span>
-      <span data-en style="display:none">Different bench sets: the respire-dsh figure is an in-house 277-case Chinese set, the dsh-memlite figure is a BM25 benchmark set — not a head-to-head comparison.</span>
-    </div>
-  </section>
-
-  <section id="commands">
-    <h2><span class="no">03</span><span data-zh>命令</span><span data-en style="display:none">Commands</span></h2>
-    <p class="lead" data-zh>DSH 命令名为单 token——13 个核心 dash 名 + 3 个 Obsidian 命令，全部返回 CommandResult。</p>
-    <p class="lead" data-en style="display:none">DSH command names are single tokens — 13 core dash names plus 3 Obsidian commands, all returning CommandResult.</p>
-    <table>
-      <tr><th data-zh>命令</th><th data-en style="display:none">Command</th><th data-zh>作用</th><th data-en style="display:none">Purpose</th></tr>
-      <tr><td class="cmd"><code>/memlite</code></td><td data-zh>概览与快速上手</td><td data-en style="display:none">Overview & quick start</td></tr>
-      <tr><td class="cmd"><code>/memlite-recall &lt;query&gt; [--limit N] [--bm25] [--project P]</code></td><td data-zh>检索（语义/词面/RRF 自动选档）</td><td data-en style="display:none">Recall (semantic/lexical/RRF auto)</td></tr>
-      <tr><td class="cmd"><code>/memlite-remember &lt;content&gt; [--title T] [--tags a,b] [--parent ID]</code></td><td data-zh>存记忆并认因</td><td data-en style="display:none">Store with optional parent</td></tr>
-      <tr><td class="cmd"><code>/memlite-show &lt;id&gt;</code></td><td data-zh>全文 + 因果视界</td><td data-en style="display:none">Full text + causal view</td></tr>
-      <tr><td class="cmd"><code>/memlite-forget &lt;id&gt;</code></td><td data-zh>删（墓碑）</td><td data-en style="display:none">Delete (tombstone)</td></tr>
-      <tr><td class="cmd"><code>/memlite-update &lt;id&gt; [--title T] [--content C]</code></td><td data-zh>就地改（追加新版本）</td><td data-en style="display:none">Update (append new version)</td></tr>
-      <tr><td class="cmd"><code>/memlite-attach &lt;child&gt; --parent &lt;parent&gt;</code></td><td data-zh>挂链（防自挂防环）</td><td data-en style="display:none">Attach (cycle-guarded)</td></tr>
-      <tr><td class="cmd"><code>/memlite-tree [--from ID] [--depth N] [--outline]</code></td><td data-zh>因果树渲染</td><td data-en style="display:none">Render the causal tree</td></tr>
-      <tr><td class="cmd"><code>/memlite-chain &lt;id&gt; [--depth N]</code></td><td data-zh>因链全文 + 果链下探</td><td data-en style="display:none">Ancestors + descendants</td></tr>
-      <tr><td class="cmd"><code>/memlite-sync</code></td><td data-zh>git 白名单同步</td><td data-en style="display:none">Git whitelist sync</td></tr>
-      <tr><td class="cmd"><code>/memlite-status</code></td><td data-zh>库状态</td><td data-en style="display:none">Library status</td></tr>
-      <tr><td class="cmd"><code>/memlite-reembed</code></td><td data-zh>旧记忆回填向量</td><td data-en style="display:none">Backfill embeddings</td></tr>
-      <tr><td class="cmd"><code>/memlite-bench</code></td><td data-zh>命中率评测（20×20）</td><td data-en style="display:none">Hit-rate bench (20×20)</td></tr>
-      <tr><td class="cmd"><code>/memlite-import &lt;vault-path&gt; [--dry-run]</code></td><td data-zh>Obsidian vault 灌入记忆库（建议先 dry-run）</td><td data-en style="display:none">Import an Obsidian vault (dry-run first)</td></tr>
-      <tr><td class="cmd"><code>/memlite-export &lt;output-path&gt; [--overwrite]</code></td><td data-zh>记忆库导出为 vault</td><td data-en style="display:none">Export library as a vault</td></tr>
-      <tr><td class="cmd"><code>/memlite-vault-status &lt;vault-path&gt;</code></td><td data-zh>同步态查询（synced/outdated/missing）</td><td data-en style="display:none">Sync states (synced/outdated/missing)</td></tr>
-    </table>
-  </section>
-
-  <section id="config">
-    <h2><span class="no">04</span><span data-zh>配置</span><span data-en style="display:none">Configuration</span></h2>
-    <p class="lead" data-zh>侧栏「插件」→ <b>Memlite 记忆</b>行 → <b>配置</b>：插件自带浏览器半区，表单暂存草稿、只读生效值，保存才写入 profile 的 <code>cordis.patch.yml</code>。密钥走 credentials——永不写入配置文件或数据仓。</p>
-    <p class="lead" data-en style="display:none">Sidebar → Plugins → the <b>Memlite Memory</b> row → <b>Configure</b>: the plugin ships its own browser half; the form stages a draft, shows effective values, and only Save writes to the profile's <code>cordis.patch.yml</code>. Keys live in credentials, never in config files or the data store.</p>
-    <table>
-      <tr><th data-zh>字段</th><th data-en style="display:none">Field</th><th data-zh>默认</th><th data-en style="display:none">Default</th><th data-zh>说明</th><th data-en style="display:none">Notes</th></tr>
-      <tr><td><code>enabled</code></td><td><code>true</code></td><td data-zh>总开关；关闭后立即停注入/召回/提醒，工具与命令回执拒绝</td><td data-en style="display:none">Master switch; disables rules, recall, nudges, tools and commands immediately</td></tr>
-      <tr><td><code>dataDir</code></td><td><code>''</code></td><td data-zh>留空自动解析（MEMLITE_DATA &gt; 项目级 &gt; 用户级 &gt; ~/memlite-data）；修改会重建引擎</td><td data-en style="display:none">Empty = auto-resolve (MEMLITE_DATA &gt; project &gt; user &gt; ~/memlite-data); changing it rebuilds the engine</td></tr>
-      <tr><td><code>recallLimit</code></td><td><code>5</code></td><td data-zh>单次召回上限（1–50）</td><td data-en style="display:none">Recall limit (1–50)</td></tr>
-      <tr><td><code>recallThreshold</code></td><td><code>0</code></td><td data-zh>召回分数阈值（0–1，0=不筛）</td><td data-en style="display:none">Score threshold (0–1, 0 = no filter)</td></tr>
-      <tr><td><code>budgetChars</code></td><td><code>1500</code></td><td data-zh>自动注入字符预算（200–20000）</td><td data-en style="display:none">Injection char budget (200–20000)</td></tr>
-      <tr><td><code>minPromptChars</code></td><td><code>2</code></td><td data-zh>短于该长度的提示词跳过召回</td><td data-en style="display:none">Shorter prompts skip recall</td></tr>
-      <tr><td><code>storeNudgeEvery</code></td><td><code>1</code></td><td data-zh>收尾提醒频率（每 N 轮）；0 关闭</td><td data-en style="display:none">Wrap-up nudge every N rounds; 0 disables</td></tr>
-      <tr><td><code>sync</code></td><td><code>{auto:false}</code></td><td data-zh>挂载/重建时自动 git 同步，可选 remote</td><td data-en style="display:none">Auto git sync on mount/rebuild, optional remote</td></tr>
-      <tr><td><code>embedding</code></td><td><code>none</code></td><td data-zh>provider（none / openai-compatible / host）、apiBase、model、credentialRef、timeoutMs</td><td data-en style="display:none">provider (none / openai-compatible / host), apiBase, model, credentialRef, timeoutMs</td></tr>
-      <tr><td><code>sensitiveGate</code></td><td><code>true</code></td><td data-zh>写前敏感扫描</td><td data-en style="display:none">Pre-write sensitive scan</td></tr>
-    </table>
-    <div class="note">
-      <span data-zh>表单只投影 <b>volatile</b> 配置：根 Config 声明 <code>.volatile()</code>，保存不重挂插件——召回参数下一次调用即生效，<code>dataDir</code>/<code>embedding</code>/<code>sync</code>/<code>sensitiveGate</code> 变化由插件重建记忆引擎。密钥只存 DSH credentials（<code>credentialRef</code>），绝不写入配置文件或数据仓。</span>
-      <span data-en style="display:none">The form projects only <b>volatile</b> config: the root Config declares <code>.volatile()</code>, so saving never remounts the plugin — recall parameters take effect on the next call, while <code>dataDir</code>/<code>embedding</code>/<code>sync</code>/<code>sensitiveGate</code> changes rebuild the memory engine. Keys live only in DSH credentials (<code>credentialRef</code>), never in config files or the data store.</span>
-    </div>
-    <div class="note">
-      <span data-zh><b>展示名称</b>来自包内 <code>locale/zh.json</code> / <code>locale/en.json</code> 的 <code>meta.title</code>「Memlite 记忆」/「Memlite Memory」；缺失时回退 <code>package.json</code> 的 <code>name</code>/<code>description</code>，再回退完整包名。改展示名只需改 locale JSON 并重启该插件行。</span>
-      <span data-en style="display:none"><b>Display name</b> comes from <code>meta.title</code> in <code>locale/zh.json</code> / <code>locale/en.json</code> ("Memlite 记忆" / "Memlite Memory"); missing fields fall back to <code>package.json</code> <code>name</code>/<code>description</code>, then the full package name. Renaming only needs a locale JSON edit and a row restart.</span>
-    </div>
-    <div class="note">
-      <span data-zh>嵌入三档：none（默认，纯 BM25 零外网）→ openai-compatible（独立嵌入服务，密钥走 credentials）→ host 在 DSH 0.2.x 暂不可用（宿主无 embeddings API，插件加载时告警并自动回退 BM25——明示降级，不静默）。</span>
-      <span data-en style="display:none">Three embedding tiers: none (default, pure BM25, zero network) → openai-compatible (dedicated service, key via credentials) → host is unavailable on DSH 0.2.x (no embeddings API; the plugin warns and falls back to BM25 — explicit, not silent).</span>
-    </div>
-    <div class="note">
-      <span data-zh><b>Obsidian 桥（GUI）</b>：同一配置页可直接预览/导入 vault、把记忆库导出为 vault、检查 synced/outdated/missing。路径是主机上的路径（支持 <code>~</code>）；请求走 <code>/api/memlite/obsidian/{import,export,status}</code>，由 DSH <code>connection</code> 服务完成浏览器认证与 Host/Origin 信任栅栏，仅 owner Peer 可用；同一时刻只允许一个导入/导出任务。</span>
-      <span data-en style="display:none"><b>Obsidian bridge (GUI)</b>: the same settings page previews/imports a vault, exports the library as a vault, and checks synced/outdated/missing states. Paths are on the host (with <code>~</code> expansion); requests go to <code>/api/memlite/obsidian/{import,export,status}</code>, authenticated and Host/Origin-fenced by DSH's <code>connection</code> service for the owner Peer only; one import/export task at a time.</span>
-    </div>
-  </section>
-
-  <section id="install">
-    <h2><span class="no">05</span><span data-zh>安装与上手</span><span data-en style="display:none">Install & quick start</span></h2>
-<pre><span class="c"># 本地开发装载（npm 发布前）</span>
-pnpm -C dsh-memlite build     <span class="c"># 宿主 + 浏览器 bundle（dist/index.js、dist/client.js）</span>
-dsh plugin --profile &lt;profile&gt; add ./dsh-memlite
-
-<span class="c"># 发布后</span>
-dsh plugin --profile &lt;profile&gt; add @rsrsai/dsh-memlite
-
-<span class="c"># 图形配置：侧栏「插件」→ Memlite 记忆 → 配置</span>
-<span class="c"># 对话里</span>
-/memlite-remember nginx 504 排查手册 --title nginx题
-/memlite-remember 下游结论 --parent &lt;id&gt;
-/memlite-recall 网关超时
-/memlite-tree --outline</pre>
-    <p class="lead" data-zh style="margin-top:14px">记住一条因，补一条果——下次相关对话开始时，记忆已经在 prompt 里。</p>
-    <p class="lead" data-en style="display:none" style="margin-top:14px">Record a cause, append an effect — next time a related conversation starts, the memory is already in the prompt.</p>
-  </section>
-
-  <section id="m0">
-    <h2><span class="no">06</span><span data-zh>0.3.1 实测记</span><span data-en style="display:none">Field notes</span></h2>
-    <p class="lead" data-zh>从 0.1.0 的 API 漂移，到 0.3.1 的 GUI 配置页与展示名——每一条都先在真机坐实，再回写代码与文档。</p>
-    <p class="lead" data-en style="display:none">From the 0.1.0 API drifts to the 0.3.1 GUI settings page and display name — every item was confirmed on a real host before being written back into code and docs.</p>
-    <ul class="drift">
-      <li><b data-zh>GUI 配置页</b><b data-en style="display:none">GUI settings page</b> <span data-zh>真机用 UI 自动化验证：把 recallLimit 改成 6 保存，profile 的 <code>cordis.patch.yml</code> 出现 <code>- id: memlite / config: recallLimit: 6</code>；改回 5 保存，覆盖被 unset 移除。</span><span data-en style="display:none">verified with UI automation: setting recallLimit to 6 wrote <code>- id: memlite / config: recallLimit: 6</code> into the profile's <code>cordis.patch.yml</code>; setting it back to 5 removed the override via unset.</span></li>
-      <li><b data-zh>volatile 投影</b><b data-en style="display:none">Volatile projection</b> <span data-zh>settings 只投影 <code>.volatile()</code> 字段，且同一 schema 内不允许嵌套 volatile——所以根 Config 整体 volatile，插件按次读快照。</span><span data-en style="display:none">settings projects only <code>.volatile()</code> fields and forbids nested volatile inside one schema — so the root Config is volatile and the plugin reads a snapshot per call.</span></li>
-      <li><b data-zh>展示名称</b><b data-en style="display:none">Display name</b> <span data-zh>来自 <code>locale/&lt;lang&gt;.json</code> 的 <code>meta.title</code>/<code>meta.description</code>；包有 exports 时必须导出 <code>./locale/*.json</code>，否则静默回退包名。bundle 卡片与行共用同一份 meta。</span><span data-en style="display:none">comes from <code>meta.title</code>/<code>meta.description</code> in <code>locale/&lt;lang&gt;.json</code>; when the package declares exports, <code>./locale/*.json</code> must be exported or it silently falls back to the package name. Bundle cards and rows share the same meta.</span></li>
-      <li><b data-zh>重载方式</b><b data-en style="display:none">Reloading a row</b> <span data-zh>本 profile 下 <code>set_plugin</code> 对 bundle 内行返回 overridden 且不生效；用 <code>set_bundle</code> 关/开组合包，行才会重启并重读 manifest 与客户端 bundle。</span><span data-en style="display:none">on this profile <code>set_plugin</code> reports overridden for a row inside a bundle and does nothing; toggling the bundle with <code>set_bundle</code> restarts the row and re-reads its manifest and client bundle.</span></li>
-      <li><b>credentials.resolve(ref)</b> <span data-zh>返回 {value, source}——不是 get(ref)（0.1.0 实测）。</span><span data-en style="display:none">returns {value, source} — not get(ref) (0.1.0 finding).</span></li>
-      <li><b>AssembleContext</b> <span data-zh>类型面无 agent 字段，运行时实传 {agent, scope, signal}——防御性读取。</span><span data-en style="display:none">has no agent field in types, but the runtime passes {agent, scope, signal} — read defensively.</span></li>
-      <li><b data-zh>无 providers 服务</b><b data-en style="display:none">No providers service</b> <span data-zh>——dsh-llm 只有 chat，无 embeddings；host 档明示回退。</span><span data-en style="display:none">— dsh-llm is chat-only; the host tier falls back explicitly.</span></li>
-      <li><b>COMMAND_NAME</b> <span data-zh>单 token 正则——命令名含空格注册即拒。</span><span data-en style="display:none">is a single-token regex — spaced names are rejected at registration.</span></li>
+  <section id="trust">
+    <h2><span class="no">02</span><span data-zh>为什么可信</span><span data-en style="display:none">Why trust it</span></h2>
+    <p class="lead" data-zh>记忆是私事。下面五条是默认行为，不需要额外配置。</p>
+    <p class="lead" data-en style="display:none">Memory is personal. These five things are the default — no extra setup.</p>
+    <ul class="trust">
+      <li>
+        <b data-zh>默认只写本机</b><b data-en style="display:none">Local by default</b>
+        <span data-zh>记忆保存在你自己的电脑上，不配置同步就不会上传；默认的搜索方式也不联网。</span>
+        <span data-en style="display:none">Memories live on your computer and are not uploaded unless you set up sync. The default search works without network access.</span>
+      </li>
+      <li>
+        <b data-zh>敏感信息先拦下</b><b data-en style="display:none">Secrets blocked first</b>
+        <span data-zh>密码、API 密钥、身份证、银行卡等，写入前检查；命中就拒绝，并建议只记“放在哪里”。</span>
+        <span data-en style="display:none">Passwords, API keys, ID numbers, bank cards and similar secrets are checked before writing; hits are rejected with a suggestion to store only where they live.</span>
+      </li>
+      <li>
+        <b data-zh>同步由你掌控</b><b data-en style="display:none">Sync stays yours</b>
+        <span data-zh>可选同步到你自己的私有空间；不配置就完全本地。需要一点 Git 基础。</span>
+        <span data-en style="display:none">Optional sync to your own private space; skip it and everything stays local. A little Git knowledge helps.</span>
+      </li>
+      <li>
+        <b data-zh>免费开源</b><b data-en style="display:none">Free & open source</b>
+        <span data-zh>免费开源，代码可查；没有订阅费，也没有按次计费。</span>
+        <span data-en style="display:none">Free and open source, open to inspection. No subscription, no per-use fee.</span>
+      </li>
+      <li>
+        <b data-zh>数据随时能带走</b><b data-en style="display:none">Your data stays portable</b>
+        <span data-zh>记忆就是本机上的普通文件，复制即可备份，不绑定某个平台或账号。</span>
+        <span data-en style="display:none">Memories are ordinary local files. Copy them to back up or move them; they are not locked to an account or platform.</span>
+      </li>
     </ul>
   </section>
+
+  <section id="start">
+    <h2><span class="no">03</span><span data-zh>怎么开始</span><span data-en style="display:none">Get started</span></h2>
+    <p class="lead" data-zh>不用背命令。装好之后，日常只需要说一句「记：」。</p>
+    <p class="lead" data-en style="display:none">No commands to memorize. Once installed, day-to-day use is just “remember:”.</p>
+    <div class="start-grid">
+      <div class="start-card">
+        <h3 data-zh>普通用户</h3><h3 data-en style="display:none">For everyday users</h3>
+        <p data-zh>把这一页转给帮你维护 DSH 的人，或让管理员安装。装好后：</p>
+        <ul data-zh>
+          <li>侧栏「插件」→「Memlite 记忆」→「配置」，默认值就能用；</li>
+          <li>日常说「记：客户 A 的报价按含税口径」，就会记下；</li>
+          <li>下次相关对话，它会自动想起，不用手动搜索。</li>
+        </ul>
+        <p data-en style="display:none">Send this page to whoever maintains your DSH, or ask your admin to install it. Then:</p>
+        <ul data-en style="display:none">
+          <li>Sidebar → Plugins → Memlite Memory → Configure; the defaults work as-is.</li>
+          <li>Say “remember: client A quotes are tax-inclusive” to save it.</li>
+          <li>Next time it is relevant, it comes back automatically — no search.</li>
+        </ul>
+        <p class="muted" data-zh>安装只需一条命令，交给维护者即可。</p>
+        <p class="muted" data-en style="display:none">Installation is one command — hand it to your maintainer.</p>
+      </div>
+      <div class="start-card">
+        <h3 data-zh>开发者</h3><h3 data-en style="display:none">For developers</h3>
+        <p data-zh>安装命令、16 个命令、配置字段、实现细节与 respire-dsh 对比，都在 GitHub README。</p>
+        <p data-en style="display:none">The install command, all 16 commands, config fields, internals and the respire-dsh comparison live in the GitHub README.</p>
+        <a class="link" href="https://github.com/risense-ai/dsh-memlite#readme" data-zh>打开 README →</a>
+        <a class="link" href="https://github.com/risense-ai/dsh-memlite#readme" data-en style="display:none">Open the README →</a>
+        <p class="muted" data-zh>可以先在测试环境装，确认没问题再给团队用。</p>
+        <p class="muted" data-en style="display:none">Try it in a test profile first, then roll it out to the team.</p>
+      </div>
+    </div>
+    <div class="note" style="margin-top:18px">
+      <span data-zh><b>适合记什么：</b>周报模板、客户 A 的偏好、合同审批流程、项目约定、常用回复口径——那些“每次都要重新讲”的事。</span>
+      <span data-en style="display:none"><b>Good things to remember:</b> weekly report templates, client A's preferences, contract approval steps, project conventions, standard reply wording — anything you keep repeating.</span>
+    </div>
+  </section>
+
+  <section id="faq">
+    <h2><span class="no">04</span><span data-zh>常见问题</span><span data-en style="display:none">FAQ</span></h2>
+    <div class="faq">
+      <details>
+        <summary><span data-zh>记错了怎么改？</span><span data-en style="display:none">How do I fix a wrong memory?</span></summary>
+        <p data-zh>直接在对话里说「把刚才那条改成……」，让 AI 更新；不用手动翻文件。更新会保留原记录，不会悄悄覆盖。</p>
+        <p data-en style="display:none">Just say “change that memory to …” in the chat and let the AI update it. No file editing. Updates keep the original record instead of silently overwriting it.</p>
+      </details>
+      <details>
+        <summary><span data-zh>怎么删？删了还能恢复吗？</span><span data-en style="display:none">How do I delete? Can it be undone?</span></summary>
+        <p data-zh>说「删掉这条」即可。删除后不会再被想起；本机文件里保留删除标记，不会发给别人。如果配置了私有同步，删除标记也会同步到你自己的仓库。目前没有一键恢复按钮，误删需要人工处理。</p>
+        <p data-en style="display:none">Say “delete that memory”. It will no longer be recalled. A deletion marker stays in the local file and is not sent to anyone else; if you enabled private sync, it syncs to your own repository like any other change. There is no one-click undo yet; accidental deletion needs manual recovery.</p>
+      </details>
+      <details>
+        <summary><span data-zh>换电脑怎么办？</span><span data-en style="display:none">What if I change computers?</span></summary>
+        <p data-zh>把本机的记忆文件夹复制到新电脑，或配置私有同步（需要一点 Git 基础）。不配置同步也不影响使用。</p>
+        <p data-en style="display:none">Copy the memory folder to the new machine, or set up private sync (a little Git knowledge helps). Skipping sync does not affect normal use.</p>
+      </details>
+      <details>
+        <summary><span data-zh>误拦了敏感信息怎么办？</span><span data-en style="display:none">What if a safe note is blocked?</span></summary>
+        <p data-zh>把内容改成“位置提示”，例如“密码在密码管理器里”，再记一次。不建议关闭拦截；确实要关，在配置页里可以找到开关。</p>
+        <p data-en style="display:none">Rewrite it as a pointer, e.g. “the password is in the password manager”, and save again. Turning the gate off is not recommended; the switch is in settings if you really need it.</p>
+      </details>
+      <details>
+        <summary><span data-zh>要背 16 个命令吗？</span><span data-en style="display:none">Do I need to memorize 16 commands?</span></summary>
+        <p data-zh>不用。日常只有「记：」和自然语言；命令是给开发者的进阶用法，完整列表在 README。</p>
+        <p data-en style="display:none">No. Day to day you only need “remember:” and plain language. The commands are advanced tools for developers; the full list is in the README.</p>
+      </details>
+      <details>
+        <summary><span data-zh>会上传我的记忆吗？</span><span data-en style="display:none">Are my memories uploaded?</span></summary>
+        <p data-zh>默认不会。只有你主动配置的嵌入服务或私有同步目标会收到数据；不配置就只在本机。</p>
+        <p data-en style="display:none">Not by default. Only an embedding service or sync target you configure receives data. Without them, everything stays local.</p>
+      </details>
+      <details>
+        <summary><span data-zh>免费吗？</span><span data-en style="display:none">Is it free?</span></summary>
+        <p data-zh>免费开源，没有订阅费。</p>
+        <p data-en style="display:none">Yes — free and open source, with no subscription.</p>
+      </details>
+    </div>
+  </section>
+
+
 </div>
 
 <footer>
   <div class="wrap">
     <div>
-      <span data-zh>dsh-memlite — 由 <a href="https://github.com/risense-ai">risense</a> 维护，MIT 协议。</span>
-      <span data-en style="display:none">dsh-memlite — maintained by <a href="https://github.com/risense-ai">risense</a>, MIT.</span>
+      <span data-zh>dsh-memlite — 由 <a href="https://github.com/risense-ai">risense</a> 维护，免费开源。</span>
+      <span data-en style="display:none">dsh-memlite — maintained by <a href="https://github.com/risense-ai">risense</a>, free and open source.</span>
     </div>
     <div>
       <a href="https://github.com/risense-ai/dsh-memlite">GitHub</a> ·
-      <a href="https://github.com/risense-ai/memlite-js">@rsrsai/memlite</a> ·
-      <a href="https://github.com/risense-ai/respire-memlite">respire-memlite (Rust)</a>
+      <a href="https://github.com/risense-ai/dsh-memlite#readme" data-zh>开发者文档</a><a href="https://github.com/risense-ai/dsh-memlite#readme" data-en style="display:none">Developer docs</a> ·
+      <a href="https://github.com/risense-ai/dsh-memlite/releases" data-zh>版本记录</a><a href="https://github.com/risense-ai/dsh-memlite/releases" data-en style="display:none">Releases</a>
     </div>
   </div>
 </footer>

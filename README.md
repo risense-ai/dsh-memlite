@@ -8,19 +8,36 @@
 ✅ **0.3.2 GUI 配置页 + Obsidian 桥 + 本地化展示名**（2026-11-08）：在侧栏「插件」页的 **Memlite 记忆**行打开**配置**，
 可视化编辑全部字段并直接导入/导出 Obsidian vault；保存写入 profile 的 `cordis.patch.yml`，展示名/描述由 `locale/` 的 `meta` 提供。
 其余行为保持 0.2.0 架构（静态规则、pre-step 召回、status 体检、敏感闸、显式存储 + 读回、收尾 steer、模型工具、16 命令）。
-81 测试全绿；`pnpm build` 同时产出宿主与浏览器 bundle。
+81 例测试（79 通过 + 2 既有 skip）；`pnpm build` 同时产出宿主与浏览器 bundle。
 
 ## 与 respire-dsh 的差别
 
 | 面 | respire-dsh | dsh-memlite（0.3.2） |
 |---|---|---|
-| 引擎 | `rsrs` CLI 子进程 | 进程内 `@rsrsai/memlite` |
-| 模型读写 | 模型用 shell 跑 `rsrs` | 模型调 `memlite_*` 工具 |
-| 用户命令 | 无 | 16 个 `/memlite-*` 斜杠命令 |
-| 存储 | rsrs 加密库 | JSONL 因果树 + git 同步 + 三档嵌入 |
-| 其余 | 规则 / pre-step / status / 敏感闸 / 读回 / 收尾 steer / 失败回执 | **同左** |
+| 引擎 | `rsrs` CLI 子进程 + 常驻 Runtime（Node 24+） | 进程内 `@rsrsai/memlite`，零子进程 |
+| 模型读写 | 模型用 shell 跑 `rsrs` | 5 个 `memlite_*` 工具 |
+| 存储 | 加密 SQLite（`~/.rsrs/rsrs.db`） | 明文 JSONL + `emb.f32` 侧车 |
+| 同步 | 密文云同步（服务端不持密钥） | git 白名单同步 |
+| 项目隔离 | 单库 + `project` 范围过滤 | 项目级库目录 + 用户级回退 |
+| 命令面 | 无斜杠命令，走 `rsrs` CLI | 16 个 `/memlite-*` |
+| 生态 | 12 个宿主插件共用同一 `rsrs` 库 | Harness / CLI / AstrBot / Obsidian 桥；Rust / TS / Python 数据互通 |
+| 评测 | 自建中文集 hit@5=78.7%（2026-09，277 题）；LongMemEval 未跑 | BM25 hit@1=85%（与 Rust memlite 对齐） |
+| 共同点 | 规则注入 / pre-step 召回 / status 体检 / 敏感闸 / 读回校验 / 收尾 steer / 失败回执 | 同左 |
 
-详见 [respire 对齐说明](./docs/respire-alignment.md)。
+- **数据格式不互通**：respire-dsh 用 `rsrs` 加密 SQLite；dsh-memlite 用 JSONL。dsh-memlite 与 [respire-memlite](https://github.com/risense-ai/respire-memlite)（Rust CLI）数据互通，不是与 respire-dsh 互通。
+- **评测口径不同**：respire-dsh 行是自建中文真库 277 题，dsh-memlite 行是 BM25 基准集，不构成同题横比。
+- 本地检索实现与数据结构见 [`docs/respire-alignment.md`](./docs/respire-alignment.md)。
+
+## 数据与隐私
+
+- **默认只写本机**：`dataDir` 留空时按 `MEMLITE_DATA` > 项目 `.memlite/` > 用户级 > `~/memlite-data` 解析。
+- **明文 JSONL**：存储是 `memory.jsonl` + `emb.f32` 向量侧车，不是加密库；只在本机，不上传。
+- **与 Rust 互通**：dsh-memlite 与 [respire-memlite](https://github.com/risense-ai/respire-memlite)（Rust CLI）读写同一数据契约，可共享同一记忆库；与 respire-dsh 的 `rsrs` 加密库不互通。
+- **可选 Git 同步**：白名单 add + pathspec commit（不卷入其他暂存改动）；push 后双通道 sha 核验。
+- **软删除**：`/memlite-forget` 追加删除记录，条目不再被召回；当前没有一键恢复命令，误删需手工处理。
+- **敏感闸**：写前扫描密码、API 密钥、身份证、银行卡（Luhn）、手机号、JWT、PEM 私钥；命中即拒。
+- **嵌入三档**：默认 `none`（纯 BM25，零外网）；`openai-compatible` 会把文本发给配置的嵌入服务；`host` 在 DSH 0.2.x 不可用，加载时告警并回退 BM25。
+- **密钥**：只存 DSH credentials（`credentialRef`），不写入配置文件、数据仓或日志。
 
 ## 机制
 
@@ -35,6 +52,27 @@
 4. **模型工具**：`memlite_recall` / `memlite_show` / `memlite_remember` / `memlite_update` / `memlite_attach`
    —— 等价于 respire 让模型执行 rsrs CLI 的那条通道。
 5. **命令面**：原 16 个 `/memlite-*` 不变（recall/remember/show/tree/chain/import/export…）。
+
+### 命令参考
+
+| 命令 | 作用 |
+|---|---|
+| `/memlite` | 概览与快速上手 |
+| `/memlite-recall <query> [--limit N] [--bm25] [--project P]` | 检索（语义/词面/RRF 自动选档） |
+| `/memlite-remember <content> [--title T] [--tags a,b] [--parent ID]` | 存记忆并认因 |
+| `/memlite-show <id>` | 全文 + 前因后果 |
+| `/memlite-forget <id>` | 删除（软删除，追加删除记录） |
+| `/memlite-update <id> [--title T] [--content C]` | 就地改（追加新版本） |
+| `/memlite-attach <child> --parent <parent>` | 挂因果链（防自挂、防环） |
+| `/memlite-tree [--from ID] [--depth N] [--outline]` | 渲染因果树 |
+| `/memlite-chain <id> [--depth N]` | 因链全文 + 果链下探 |
+| `/memlite-sync` | git 白名单同步 |
+| `/memlite-status` | 库状态 |
+| `/memlite-reembed` | 旧记忆回填向量 |
+| `/memlite-bench` | 命中率评测（20×20） |
+| `/memlite-import <vault-path> [--dry-run]` | Obsidian vault 导入记忆库（建议先 dry-run） |
+| `/memlite-export <output-path> [--overwrite]` | 记忆库导出为 vault |
+| `/memlite-vault-status <vault-path>` | 同步态查询（synced/outdated/missing） |
 
 ## 特性
 
@@ -109,18 +147,36 @@ Host/Origin 信任栅栏，仅 owner Peer 可用；Web 与桌面端共用，请�
 | `embedding` | `none` | `none` / `host`（0.2.x 不可用，回退 BM25）/ `openai-compatible` |
 | `sensitiveGate` | `true` | 写前敏感扫描 |
 
-## 安装（待发布）
+## 安装
+
+发布版（npm `@rsrsai/dsh-memlite@0.3.2`）：
 
 ```bash
 dsh plugin --profile <profile> add @rsrsai/dsh-memlite
 ```
 
-本地开发装载：
+装好后在侧栏「插件」→「Memlite 记忆」→「配置」；默认值即可用。日常说「记：」即可，不必背命令。
+
+本地开发装载（在仓库根目录）：
 
 ```bash
-pnpm -C dsh-memlite build
-dsh plugin --profile <profile> add ./dsh-memlite
+pnpm install
+pnpm build
+dsh plugin --profile <profile> add .
 ```
+
+## 实测记录
+
+以下每条都先在真机 DSH 上确认，再回写代码与文档：
+
+- **GUI 配置页**：UI 自动化保存 `recallLimit` 后，profile 的 `cordis.patch.yml` 出现 `- id: memlite / config: recallLimit: 6`；改回默认值时覆盖被 unset 移除。
+- **volatile 投影**：settings 只投影 `.volatile()` 字段，同一 schema 内不允许嵌套 volatile；根 Config 整体 volatile，插件按次读快照。
+- **展示名称**：来自 `locale/<lang>.json` 的 `meta.title` / `meta.description`；包声明 exports 时必须导出 `./locale/*.json`，否则静默回退包名。
+- **重载方式**：本 profile 下 `set_plugin` 对 bundle 内行返回 overridden 且不生效；用 `set_bundle` 关/开组合包，行才会重启并重读 manifest 与客户端 bundle。
+- **credentials.resolve(ref)**：返回 `{value, source}`，不是 `get(ref)`。
+- **AssembleContext**：类型面无 `agent` 字段，运行时实传 `{agent, scope, signal}`，按防御性读取处理。
+- **无 providers 服务**：`dsh-llm` 只有 chat，无 embeddings；host 嵌入档明示回退。
+- **COMMAND_NAME**：单 token 正则，命令名含空格注册即拒。
 
 ## 测试
 
