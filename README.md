@@ -153,13 +153,18 @@
 
 ### GUI（推荐）
 
-侧栏**「插件」**→ 已安装插件 **Memlite 记忆** → 行 **memlite** → **配置**。
+两个入口，同一份表单、同一保存路径：
+
+- **设置对话框**：左下角账号菜单 →「设置」（`⌘,`）→ 左侧 **Memlite 记忆**；
+- **插件页**：侧栏**「插件」**→ 已安装插件 **Memlite 记忆** → 行 **memlite** → **配置**。
+
 表单暂存草稿，点**保存**才写入 profile 的 `cordis.patch.yml`；每个字段带「已覆盖」与「恢复默认」。
 
 - 召回参数（条数/阈值/预算/最短提示词/收尾频率）保存后立即生效；
 - `dataDir` / `embedding` / `sync` / `sensitiveGate` 变化会重建记忆引擎（不重挂插件）；
 - 关闭 `enabled` 立即停止规则注入、召回与提醒，工具/命令回执拒绝；重启后不再加载；
-- 该页面由插件自带的浏览器半区注册（`plugins.row.config`），不是设置页的自动渲染。
+- 两个入口都由插件自带的浏览器半区注册（`settings.section` 与 `plugins.row.config`）；
+  设置分节只在宿主 settings 服务 `memlite` 命名空间时出现，插件停用即消失。
 
 ### 并发与多窗口（YAML）
 
@@ -231,13 +236,13 @@ Host/Origin 信任栅栏，仅 owner Peer 可用；Web 与桌面端共用，请�
 
 ## 安装
 
-发布版（npm `@rsrsai/dsh-memlite@0.5.0`）：
+发布版（npm `@rsrsai/dsh-memlite@0.6.1`）：
 
 ```bash
 dsh plugin --profile <profile> add @rsrsai/dsh-memlite
 ```
 
-装好后在侧栏「插件」→「Memlite 记忆」→「配置」；默认值即可用。日常说「记：」即可，不必背命令。
+装好后从「设置」→「Memlite 记忆」或侧栏「插件」→「Memlite 记忆」→「配置」进入设置；默认值即可用。日常说「记：」即可，不必背命令。
 记忆浏览器随插件加载，无需额外配置（宿主需 DSH 0.2.2-alpha.2+，提供右侧栏页类型注册面）。
 
 本地开发装载（在仓库根目录）：
@@ -269,7 +274,7 @@ dsh plugin --profile <profile> add .
 ## 测试
 
 ```bash
-pnpm test   # 197 例：真 cordis 核 + 形状忠实宿主服务替身 + 配置表单/Obsidian 路由/记忆浏览器（Host+Client）+ 独立验收
+pnpm test   # 198 例：真 cordis 核 + 形状忠实宿主服务替身 + 配置表单/Obsidian 路由/记忆浏览器（Host+Client）+ 独立验收
 ```
 
 ## 协议

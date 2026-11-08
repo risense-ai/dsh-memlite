@@ -6,13 +6,15 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { MEMORY_TAB_ID, MEMORY_TAB_KIND, apply, inject } from '../src/client/index'
-import { MemliteConfigPage } from '../src/client/MemliteSettings'
+import { MemliteConfigPage, MemliteSettingsSection } from '../src/client/MemliteSettings'
 import { DEFAULTS } from '../src/client/form'
 import { MEMORY_LOCALE_NS } from '../src/client/memory-locales'
 
 interface Registered {
   name?: unknown
   key?: unknown
+  id?: unknown
+  order?: unknown
   locale?: unknown
   inject?: unknown
 }
@@ -91,17 +93,28 @@ describe('client half registration', () => {
     expect(inject).toEqual(['slots', 'locale', 'configForms'])
   })
 
-  it('只在 settings 提供 memlite 命名空间时注册行配置页', () => {
+  it('settings 服务 memlite 命名空间时注册行配置页与设置分节', () => {
     const fake = fakeClientContext()
     apply(fake.ctx)
-    expect(fake.servedNamespaces).toEqual([['memlite']])
+    // 行配置页 + 设置分节各自的 whileServed 跟随
+    expect(fake.servedNamespaces).toEqual([['memlite'], ['memlite']])
     // 没有 sidebarRightTabs 服务时不出现记忆页相关注册
-    expect(fake.injectedSlots).toEqual(['plugins.row.config'])
-    expect(fake.registrations).toHaveLength(1)
+    expect(fake.injectedSlots).toEqual(['plugins.row.config', 'settings.section', 'settings.section.icon'])
+    expect(fake.registrations).toHaveLength(3)
     expect(fake.registrations[0]).toMatchObject({
       name: 'plugins.row.config',
       key: '@rsrsai/dsh-memlite#memlite',
       locale: 'memliteConfig',
+    })
+    expect(fake.registrations[1]).toMatchObject({
+      name: 'settings.section',
+      id: 'memlite',
+      order: 16,
+      locale: 'memliteConfig',
+    })
+    expect(fake.registrations[2]).toMatchObject({
+      name: 'settings.section.icon',
+      id: 'memlite',
     })
     expect(Object.keys(fake.dictionaries)).toEqual(['memliteConfig', MEMORY_LOCALE_NS])
   })
@@ -110,8 +123,8 @@ describe('client half registration', () => {
     const fake = fakeClientContext()
     ;(fake.ctx as { configForms?: unknown }).configForms = undefined
     apply(fake.ctx)
-    expect(fake.injectedSlots).toEqual(['plugins.row.config'])
-    expect(fake.registrations).toHaveLength(1)
+    expect(fake.injectedSlots).toEqual(['plugins.row.config', 'settings.section', 'settings.section.icon'])
+    expect(fake.registrations).toHaveLength(3)
   })
 })
 
@@ -178,6 +191,32 @@ describe('config page rendering', () => {
     expect(html).toContain('previewImport')
     expect(html).toContain('runImport')
     expect(html).toContain('runExport')
+  })
+})
+
+describe('settings section rendering', () => {
+  it('在设置分节里复用同一份配置表单', () => {
+    const html = renderToStaticMarkup(
+      createElement(MemliteSettingsSection, {
+        t: (key: string) => key,
+        form: {
+          getSnapshot: () => ({
+            status: 'ready',
+            value: DEFAULTS,
+            base: DEFAULTS,
+            user: {},
+            revision: 0,
+            writable: true,
+          }),
+          subscribe: () => () => {},
+          mutate: async () => true,
+        },
+      }),
+    )
+    expect(html).toContain('settings.title')
+    expect(html).toContain('settings.intro')
+    expect(html).toContain('enabled')
+    expect(html).toContain('groupObsidian')
   })
 })
 

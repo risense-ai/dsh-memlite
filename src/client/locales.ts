@@ -1,6 +1,9 @@
 /** 配置页字典（跟随 DSH 当前界面语言；zh/en 起步）。 */
 
 const zh = {
+  'settings.nav': 'Memlite 记忆',
+  'settings.title': 'Memlite 记忆',
+  'settings.intro': '常驻本地记忆的全部设置。只影响本 profile，保存后写入 cordis.patch.yml；召回与注入参数立即生效。',
   summary: '持久本地记忆：召回、存储与嵌入设置',
   intro: '这里的修改只影响本 profile，保存后写入 cordis.patch.yml；召回与注入参数对本会话即刻生效。记忆浏览、存入与修正位于会话右侧「记忆」页签。',
   loading: '正在读取 memlite 配置…',
@@ -79,6 +82,9 @@ const zh = {
 }
 
 const en: Record<keyof typeof zh, string> = {
+  'settings.nav': 'Memlite memory',
+  'settings.title': 'Memlite memory',
+  'settings.intro': 'All settings for the persistent local memory. Changes apply to this profile only and persist to cordis.patch.yml on save; recall and injection parameters take effect immediately.',
   summary: 'Persistent local memory: recall, storage, and embedding settings',
   intro: 'Changes apply to this profile only and persist to cordis.patch.yml on save; recall and injection parameters take effect in this session. Browse, save, and correct memories in the Memory tab on the right sidebar.',
   loading: 'Reading memlite configuration…',

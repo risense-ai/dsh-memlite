@@ -5,7 +5,7 @@
  * 页面宿主在行详情里传入 `form = { state, mutate }`（settings 表单快照 + 写入队列）。
  * 表单只负责画草稿与保存控件，标题/面包屑由插件页负责。
  */
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
 import {
   buildChangeSet,
   configPath,
@@ -14,6 +14,8 @@ import {
   resetField,
   validateDraft,
   type ConfigFormLike,
+  type ConfigFormState,
+  type ConfigOp,
   type Draft,
 } from './form'
 
@@ -174,6 +176,55 @@ export function MemliteConfigPage(props: PageProps): ReactNode {
   if (props.view === 'summary') return props.t('summary')
   if (props.form === undefined) return <p style={introStyle}>{props.t('unavailable')}</p>
   return <MemliteConfigForm t={props.t} form={props.form} />
+}
+
+/** 宿主 settings 表单控制器的最小面（@deepseek-ai/dsh-client-ui-settings 的 ConfigFormController）。 */
+export interface ConfigFormControllerLike {
+  getSnapshot(): ConfigFormState
+  subscribe(listener: () => void): () => void
+  mutate(ops: ConfigOp[], expectedRevision?: number): Promise<boolean>
+}
+
+export interface SettingsSectionProps {
+  readonly t: PageProps['t']
+  readonly form?: ConfigFormControllerLike
+}
+
+const sectionStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 16, color: COLOR_LABEL }
+const sectionTitleStyle: CSSProperties = { margin: 0, fontSize: 18, fontWeight: 600, lineHeight: '26px' }
+
+/**
+ * 「设置」对话框里的 Memlite 分节（`settings.section`，id=memlite）。
+ *
+ * 复用插件页同款配置表单：注入的是宿主 settings 表单控制器，本组件只把它
+ * 桥接成 `{ state, mutate }` 并跟随快照变化重渲染。
+ */
+export function MemliteSettingsSection(props: SettingsSectionProps): ReactNode {
+  const { t, form } = props
+  const state = useSyncExternalStore(
+    (onChange) => (form === undefined ? () => {} : form.subscribe(onChange)),
+    () => (form === undefined ? undefined : form.getSnapshot()),
+    () => (form === undefined ? undefined : form.getSnapshot()),
+  )
+  const adapter = useMemo<ConfigFormLike | undefined>(() => {
+    if (form === undefined || state === undefined) return undefined
+    return { state, mutate: (ops, revision) => form.mutate(ops, revision) }
+  }, [form, state])
+  return (
+    <div style={sectionStyle}>
+      <div>
+        <h2 style={sectionTitleStyle}>{t('settings.title')}</h2>
+        <p style={introStyle}>{t('settings.intro')}</p>
+      </div>
+      {adapter === undefined ? (
+        <p style={introStyle}>{t('loading')}</p>
+      ) : adapter.state.status === 'unavailable' ? (
+        <p style={introStyle}>{t('unavailable')}</p>
+      ) : (
+        <MemliteConfigPage t={t} view="page" form={adapter} />
+      )}
+    </div>
+  )
 }
 
 function Field(props: {

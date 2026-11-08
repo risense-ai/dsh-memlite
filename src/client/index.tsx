@@ -1,7 +1,8 @@
 /**
- * 浏览器半区入口（两个面）：
+ * 浏览器半区入口（三个面）：
  * 1. 配置页：注册进侧栏「插件」页的行详情（`plugins.row.config`）。
- * 2. 记忆浏览器：注册右侧 Sidebar 的 Memory 页类型（`ctx.sidebarRightTabs`）与页体
+ * 2. 设置分节：同一份配置表单注册进「设置」对话框（`settings.section` + `settings.section.icon`）。
+ * 3. 记忆浏览器：注册右侧 Sidebar 的 Memory 页类型（`ctx.sidebarRightTabs`）与页体
  *    （`sidebar.right.pane.tab`，键=页类型 id），Guide 里出现入口。
  *
  * 组合方式（来自 @deepseek-ai/dsh-client-modules 与 ui-plugin-manager / ui-sidebar-right 文档）：
@@ -12,7 +13,12 @@
  * - `sidebarRightTabs` 用可选注入：老宿主没有该服务时配置页照常工作，记忆页不注册。
  */
 import type { ReactNode } from 'react'
-import { MemliteConfigPage, type PageProps } from './MemliteSettings'
+import {
+  MemliteConfigPage,
+  MemliteSettingsSection,
+  type ConfigFormControllerLike,
+  type PageProps,
+} from './MemliteSettings'
 import { locales } from './locales'
 import { MemliteMemoryPanel } from './MemliteMemory'
 import { MEMORY_LOCALE_NS, memoryLocales } from './memory-locales'
@@ -40,6 +46,7 @@ interface SlotsService {
 
 interface ConfigFormsService {
   whileServed?(namespaces: string[], register: () => () => void): () => void
+  get?(entryId: string): ConfigFormControllerLike
 }
 
 /** 右侧 Sidebar 页类型注册面（dsh-client-ui-sidebar-right 的 `ctx.sidebarRightTabs`）。 */
@@ -161,6 +168,48 @@ export function apply(ctx: ClientContext): void {
     }
     return registerPage()
   }, 'memlite: config page')
+
+  // 「设置」对话框里的 Memlite 分节（settings.section，id=memlite）：
+  // 与插件页行配置同一份表单的第二个入口，命名空间被服务时才出现。
+  const tConfig = ctx.locale.bind(NS)
+  const registerSettingsSection = (): (() => void) => {
+    const offSection = ctx.slots.inject('settings.section', () =>
+      ctx.slots.register(
+        {
+          name: 'settings.section',
+          id: ENTRY_ID,
+          order: 16,
+          label: () => tConfig('settings.nav'),
+          locale: NS,
+          inject: () => {
+            const form = ctx.configForms?.get?.(ENTRY_ID)
+            return form === undefined ? {} : { form }
+          },
+        },
+        MemliteSettingsSection as unknown as (props: PageProps) => ReactNode,
+      ),
+    )
+    const offIcon = ctx.slots.inject('settings.section.icon', () =>
+      ctx.slots.register(
+        {
+          name: 'settings.section.icon',
+          id: ENTRY_ID,
+          locale: NS,
+        },
+        (() => <MemoryGlyph />) as unknown as (props: PageProps) => ReactNode,
+      ),
+    )
+    return () => {
+      offIcon()
+      offSection()
+    }
+  }
+  ctx.effect(() => {
+    if (typeof ctx.configForms?.whileServed === 'function') {
+      return ctx.configForms.whileServed([ENTRY_ID], registerSettingsSection)
+    }
+    return registerSettingsSection()
+  }, 'memlite: settings section')
 
   // 记忆浏览器：只在宿主提供 sidebarRightTabs 时注册；老宿主上配置页不受影响。
   ctx.effect(() => {
