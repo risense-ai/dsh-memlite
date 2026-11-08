@@ -106,6 +106,7 @@ export function formatOverview(mem: Memlite): string {
     `memlite 记忆库：${s.count()} 条 @ ${mem.dataDir}`,
     '自动召回：每轮开始自动检索相关记忆并按标题注入上下文——不需要手动 /memlite-recall。',
     '自动记录：以「记：」「存：」「记录：」「记住：」「remember:」开头的消息会被自动写入并读回；每轮收尾还会提醒 AI 补记可复用结论。',
+    '零远程依赖：默认纯本地检索，不需要 Runtime、云服务或账号；嵌入与同步都是可选项。',
     '快速上手：/memlite-remember <内容> 存一条；/memlite-recall <关键词> 检索；/memlite-tree 看因果树；/memlite-status 看状态。',
   ].join('\n')
 }

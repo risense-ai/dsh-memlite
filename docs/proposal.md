@@ -342,7 +342,7 @@ ctx.skills.register({
 
 ## 九、非目标
 
-- 不做 Web 管理台（DSH 已有 web 客户端，插件可后续加 panel；M1-M3 不做）
+- 记忆浏览器不做独立管理后台（复用 DSH 聊天右侧 Sidebar）；M8 先做只读浏览
 - 不做跨宿主 IPC（DSH 插件只服务 DSH）
 - 不做多用户/权限（memlite 是个人记忆模型）
 - 不做语义自动捕获（autoCapture 默认关闭）
@@ -414,3 +414,88 @@ M0 spike 用官方 npm 包在真机（macOS，dsh CLI + web/headless profile）�
 - `agent/turn-stopping` payload `{agent, turn, signal}`；`agent/disposed` payload `{agent}`
 - skills：`register({name, description, content, source})`，`source: 'runtime'` 合法
 - `Agent` 公共面仅 `{id}`；runtime 面增 `session`（含 `cwd`）/`inbox`/`ctx`——项目名从 `agent.session.cwd` 走 memlite 的 `findProjectDir` 防御性解析
+
+---
+
+## 十四、聊天记忆浏览器（M8 设计，2026-11-08）
+
+### 14.1 目标与入口
+
+让用户无需记忆命令和 id，即可在聊天中回答三个问题：本轮用到了哪些记忆、库里保存了什么、各条记忆如何形成因果链。
+
+**采用聊天右侧 Sidebar 的 Memory 页签**，不放入插件设置，不把记忆卡片批量插入消息流，也不另建独立管理后台。该面板随会话显示，沿用 DSH 的展开、分栏、悬浮和全屏能力；右侧工具 Guide 提供入口。
+
+### 14.2 信息架构
+
+面板采用三个视图，列表与详情共享一个选中态：
+
+1. **本次对话**：按回合列出真实追加进 `decision.messages` 的记忆。展示标题、摘要、注入状态、召回分数、检索后端和时间；区分已注入、低于阈值、预算截断、召回失败，不把候选命中冒充实际注入。无活动时显示简洁空态。
+2. **全部记忆**：默认显示当前项目，提供全部项目、标签、重要性筛选，最近更新/相关度排序和标题/正文/标签检索。列表只展示标题、两行摘要与必要徽章；选中后读取全文和元数据，支持复制正文、复制 id。
+3. **因果树**：用可折叠缩进树展示 `parent_id` 关系，点击节点打开详情，支持沿因链、子条与完整 `chain` 跳转。首版不做力导向图谱，避免节点密集时不可读。
+
+页头仅放搜索、筛选、刷新和只读状态。名称优先于 id，红色只用于破坏性操作；详情使用宿主 Markdown 渲染器或纯文本安全渲染，禁止把记忆正文当 HTML 注入。
+
+### 14.3 分阶段范围
+
+- **M8a（2 天）**：右侧 Memory 页签、全部记忆、搜索筛选、分页/增量加载、详情和复制；只读。
+- **M8b（1 天）**：可折叠因果树、因果邻居与完整链跳转；只读。
+- **M8c（2 天）**：本次对话命中、注入状态、会话切换、空态/错误态和真机交互验证。
+- **M8d（后续，不在首版）**：编辑、删除、改挂、手动存入、召回反馈。写操作须复用 Memlite 主类、敏感闸、读回校验和删除二次确认，不能由浏览器直接改 JSONL。
+
+首版不开放写操作，不展示向量、嵌入凭据引用、原始查询日志、文件路径或未筛选的 `extra` 字段；只向浏览器提供明确列出的业务字段。
+
+### 14.4 宿主与数据接口
+
+浏览器半区复用现有 `dist/client.js`、locale、slots 和 DSH 主题变量；通过 `ctx.sidebarRightTabs.register()` 注册页类型，通过 `ctx.slots.register({ name: 'sidebar.right.pane.tab', key })` 注册内容。具体签名须按实施时宿主版本的权威类型复核，注册和清理均置于 `ctx.effect` 生命周期。
+
+Host 半区沿用 `connection.fetch` 的浏览器认证、Host/Origin 信任栅栏和 owner Peer 校验，通过 `() => runtime.mem` 访问当前引擎。只读路由与 Obsidian 写路由分离；路径采用文档相对地址，路由路径与请求参数白名单锁定。
+
+| 路由 | 用途 | 数据来源 |
+|---|---|---|
+| `POST /api/memlite/browser/list` | 项目/标签/重要性筛选、最近列表与游标分页 | memlite-js 主类新增公开、有界的列表/筛选方法，禁止插件直接读 `mem.store` |
+| `POST /api/memlite/browser/search` | 有界语义/词面检索 | `mem.recall(query, { limit, project, bm25Only })` |
+| `POST /api/memlite/browser/show` | 单条全文、因果邻居与链 | `mem.show(id)` / `mem.chain(id, depth)` |
+| `POST /api/memlite/browser/tree` | 有界树节点 | `mem.tree({ from, depth, mode: 'json' })` |
+| `POST /api/memlite/browser/session-recalls` | 当前会话的召回快照 | 插件内会话召回账本 |
+
+所有请求均校验对象形状、字符串长度、分页上限、id 格式、树深度与 AbortSignal。列表和树采用游标或逐层加载，禁止一次返回全库正文或全深树；响应只返回白名单字段，错误文案不带本地路径、密钥或原始请求内容。禁用 `enabled=false` 时返回明确不可用状态。
+
+现有 `/api/memlite/obsidian/*` 不变；新路由不承担写入职责，也不需要文件上传通道。
+
+### 14.5 会话召回账本
+
+当前自动召回在 `agent/pre-step` 中直接渲染标题，没有保存可供 UI 复核的结构化记录。M8c 增加**有界、按会话隔离、默认仅存内存**的召回账本：
+
+```ts
+interface SessionRecall {
+  sessionId: string
+  agentId: string
+  turn: number
+  messageId: string
+  timestamp: number
+  backend: string
+  fallback: string
+  hits: Array<{
+    id: string
+    score: number
+    injected: boolean
+    exclusion?: 'threshold' | 'budget'
+  }>
+  status: 'ok' | 'empty' | 'skipped' | 'error'
+}
+```
+
+注入状态必须与 `renderRecallTitles()` 使用同一套阈值和预算筛选结果，在 `decision.messages` 成功追加后记录。记录 `sessionId` 前须确认运行时 `agent.session` 的稳定标识；若无法取得，不伪造会话关联，先退化为按 agent 显示。中止请求不产生成功记录，失败只记录状态与安全错误码，不保存原始提示词。
+
+`agent/disposed` 清理对应账本；单会话和全局容量均有上限。首版不做持久化检索历史，不向普通用户暴露 querylog；宿主或插件重载后本次对话历史清空并明确提示，不把内存账本包装成完整审计记录。配置结构性变化导致引擎重建时，界面重新读取列表并清除失效详情；记忆正文删除后，会话历史仍仅保留 id 和当时的展示标题，并标记“原记忆已删除”。
+
+### 14.6 验收标准
+
+- 在聊天右侧打开 Memory，浏览、筛选、检索、翻页、查看全文与复制均无需输入命令。
+- 空库、无命中、插件禁用、引擎失败、请求中止、记忆被删除都有可理解状态，不发生无限加载。
+- 不同项目、会话、agent 不串数据；切换配置后不使用旧引擎或旧正文。
+- 树支持展开/收起、父子跳转和断链/环截断，窄侧栏无横向溢出。
+- 已注入与未注入列表有测试对照；候选未注入不得显示为已使用。
+- 响应不含向量、凭据、原始查询日志或完整本地路径；未认证/非 owner 请求沿用宿主拒绝策略。
+- 既有召回、命令、配置与 Obsidian 行为不变；记忆浏览不新增模型请求、不阻塞 `agent/pre-step`。
+- 运行 `pnpm typecheck`、`pnpm test`、`pnpm build`，并在 DSH Web/Desktop 真机验证聊天并排浏览、会话切换、收起/展开和刷新。

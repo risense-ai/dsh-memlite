@@ -37,6 +37,7 @@ describe('命令注册（单 token 名校验）', () => {
     expect(text).toContain('自动召回')
     expect(text).toContain('自动记录')
     expect(text).toContain('每轮开始自动检索相关记忆')
+    expect(text).toContain('零远程依赖')
   })
 })
 
