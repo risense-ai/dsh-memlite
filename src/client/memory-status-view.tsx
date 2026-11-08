@@ -142,6 +142,29 @@ function LibraryCard(props: { t: Translate; data: MemoryStatusResponse }): React
   )
 }
 
+function ConcurrencyCard(props: { t: Translate; data: MemoryStatusResponse }): ReactNode {
+  const { t, data } = props
+  const c = data.concurrency
+  if (c === undefined) return null
+  return (
+    <div style={cardStyle}>
+      <p style={sectionTitleStyle}>{t('status.concurrency')}</p>
+      <div style={badgeRowStyle}>
+        <span style={badgeStyle}>
+          {c.mode === 'multi-process' ? t('status.concurrencyMulti') : t('status.concurrencySingle')}
+        </span>
+        <span style={c.lockBackend === 'flock' ? badgeStyle : warningBadgeStyle}>
+          {c.lockBackend === 'flock' ? t('status.lockFlock') : t('status.lockInProcess')}
+        </span>
+        <span style={badgeStyle}>{t('status.protocol', { version: c.storageProtocol })}</span>
+      </div>
+      <p style={hintStyle}>
+        {c.crossProcess ? t('status.lockCrossProcess') : t('status.lockDegraded')}
+      </p>
+    </div>
+  )
+}
+
 function SearchCard(props: { t: Translate; data: MemoryStatusResponse }): ReactNode {
   const { t, data } = props
   return (
@@ -299,6 +322,7 @@ export function MemoryStatusView(props: {
         </p>
       ) : null}
       <LibraryCard t={t} data={data} />
+      <ConcurrencyCard t={t} data={data} />
       <SearchCard t={t} data={data} />
       <SyncCard t={t} data={data} busy={state.busy} result={state.result} actions={actions} />
       <ObsidianCard t={t} data={data} />

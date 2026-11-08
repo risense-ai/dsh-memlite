@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.0 (2026-11-08，源码；npm 待发布)
+
+并发协议接入与说明。
+
+- 依赖 `@rsrsai/memlite@^0.3.0`：跨进程锁、快照代次、锁内提交、条件写、向量 revision manifest。
+- 配置新增 `concurrency`（`mode` / `filesystem` / `lockTimeoutMs`），`toMemliteConfig` 透传；YAML 可开启本地多进程。
+- 状态响应新增 `concurrency`：模式、锁后端、是否跨进程、`storage_protocol`；状态视图新增「并发与锁」卡片，
+  `in-process` 时明确提示只能单写者。
+- 全部记忆/因果树读取改用 `Memlite.snapshot()`，同一请求内不跨代拼接。
+- 介绍页新增「多窗口、多进程同时用」章节；README 增加并发配置、冲突与 NFS 边界。
+- 测试 197 例全绿；`pnpm build` 产出宿主与浏览器 bundle。
+
 ## 0.5.0 (2026-11-08)
 
 完整 UI 闭环：在只读记忆浏览器之上增加统一写入、召回解释、状态视图与条件写版本守卫。

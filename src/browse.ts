@@ -173,7 +173,8 @@ export function listMemories(
     throw new TypeError('cursor 无效')
   }
 
-  const records = mem.store.all()
+  const snap = mem.snapshot()
+  const records = snap.all()
   const filtered = records.filter((record) => matches(record, project, tag, importance))
   const counts = childCounts(records)
   const sorted = filtered.slice().sort(byRecent)
@@ -186,8 +187,8 @@ export function listMemories(
     items: page.map((record) => summaryItem(record, counts, limits)),
     nextCursor: hasMore ? encodeCursor(page[page.length - 1]!) : null,
     total: sorted.length,
-    projects: topCounts(mem.store.projectCounts(), 50),
-    tags: topCounts(mem.store.tagCounts(), 100),
+    projects: topCounts(snap.projectCounts(), 50),
+    tags: topCounts(snap.tagCounts(), 100),
   }
 }
 
@@ -351,7 +352,7 @@ export function treeLayer(
 ): TreeProjection {
   const limit = clampInt(request.limit, 100, 1, MAX_TREE_LIMIT)
   const project = projectFilter(request.project)
-  const records = mem.store.all()
+  const records = mem.snapshot().all()
   const inScope = records.filter((record) => project === undefined || record.project === project)
   const scoped = new Set(inScope.map((record) => record.id))
   const counts = childCounts(records)

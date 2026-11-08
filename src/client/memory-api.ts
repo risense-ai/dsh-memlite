@@ -472,6 +472,11 @@ export function parseStatusResponse(data: unknown): MemoryStatusResponse {
   const search = requireRecord(record['search'], 'data.search')
   const sync = requireRecord(record['sync'], 'data.sync')
   const obsidian = requireRecord(record['obsidian'], 'data.obsidian')
+  const concurrencyRaw = record['concurrency']
+  const concurrencyRecord =
+    concurrencyRaw === undefined || concurrencyRaw === null
+      ? undefined
+      : requireRecord(concurrencyRaw, 'data.concurrency')
   const dataScope = requireEnum(library['dataScope'], 'data.library.dataScope', ['project', 'user', 'custom'] as const)
   const backend = requireEnum(search['backend'], 'data.search.backend', ['bm25', 'semantic+bm25'] as const)
   const embeddingProvider = requireEnum(
@@ -492,6 +497,27 @@ export function parseStatusResponse(data: unknown): MemoryStatusResponse {
   const obsidianTimestampRaw = obsidian['timestamp']
   return {
     engine: requireInt(record['engine'], 'data.engine', 0, Number.MAX_SAFE_INTEGER),
+    ...(concurrencyRecord === undefined
+      ? {}
+      : {
+          concurrency: {
+            mode: requireEnum(concurrencyRecord['mode'], 'data.concurrency.mode', [
+              'single-writer',
+              'multi-process',
+            ] as const),
+            lockBackend: requireEnum(concurrencyRecord['lockBackend'], 'data.concurrency.lockBackend', [
+              'flock',
+              'in-process',
+            ] as const),
+            crossProcess: requireBoolean(concurrencyRecord['crossProcess'], 'data.concurrency.crossProcess'),
+            storageProtocol: requireInt(
+              concurrencyRecord['storageProtocol'],
+              'data.concurrency.storageProtocol',
+              0,
+              Number.MAX_SAFE_INTEGER,
+            ),
+          },
+        }),
     library: {
       enabled: requireBoolean(library['enabled'], 'data.library.enabled'),
       records: requireInt(library['records'], 'data.library.records', 0, Number.MAX_SAFE_INTEGER),

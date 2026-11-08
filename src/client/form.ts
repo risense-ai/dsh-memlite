@@ -59,6 +59,7 @@ export const DEFAULTS: PluginConfig = {
     timeoutMs: 30000,
   },
   sensitiveGate: true,
+  concurrency: { mode: 'single-writer', filesystem: 'local', lockTimeoutMs: 10000 },
 }
 
 export interface ConfigFormState {

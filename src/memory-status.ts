@@ -101,9 +101,17 @@ export async function buildMemoryStatus(
     embedding?.provider === 'host' || embedding?.provider === 'openai-compatible'
       ? embedding.provider
       : 'none'
+  const rawConcurrency = status['concurrency'] as Record<string, unknown> | undefined
+  const concurrency = {
+    mode: rawConcurrency?.['mode'] === 'multi-process' ? ('multi-process' as const) : ('single-writer' as const),
+    lockBackend: rawConcurrency?.['lock_backend'] === 'flock' ? ('flock' as const) : ('in-process' as const),
+    crossProcess: rawConcurrency?.['cross_process'] === true,
+    storageProtocol: Number(rawConcurrency?.['storage_protocol'] ?? 0),
+  }
   const receipts: MemoryWriteReceipt[] = deps.receipts.list(scope, 50)
   return {
     engine: deps.getGeneration(),
+    concurrency,
     library: {
       enabled: deps.isEnabled(),
       records: Number(status['records'] ?? 0),

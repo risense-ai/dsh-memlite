@@ -5,6 +5,10 @@
 
 ## 状态
 
+✅ **0.6.0 并发协议接入**（2026-11-08，源码；npm 发布版仍为 0.5.0）：依赖 `@rsrsai/memlite@^0.3.0`，
+默认单写者，可显式开启本地多进程；状态页新增并发与锁后端，介绍页新增「多窗口、多进程同时用」。
+写入路径改为同一代次快照与锁内条件写；跨设备仍用 git 同步，NFS 未验收前不建议开启。
+
 ✅ **0.5.0 完整记忆 UI**（2026-11-08）：会话右侧 **Memory 页签**提供四视图——
 **本次对话**（真实注入、逐条阈值/预算解释、实际注入原文、有帮助/不相关反馈）、
 **全部记忆**（搜索 + 项目/标签/重要性筛选 + 游标分页 + 响应式列表—详情 + 编辑/续写/改挂/忘记）、
@@ -38,6 +42,8 @@
 - **明文 JSONL**：存储是 `memory.jsonl` + `emb.f32` 向量侧车，不是加密库；只在本机，不上传。
 - **与 Rust 互通**：dsh-memlite 与 [respire-memlite](https://github.com/risense-ai/respire-memlite)（Rust CLI）读写同一数据契约，可共享同一记忆库；与 respire-dsh 的 `rsrs` 加密库不互通。
 - **可选 Git 同步**：白名单 add + pathspec commit（不卷入其他暂存改动）；push 后双通道 sha 核验。
+- **并发**：默认 `single-writer`；多个 DSH 窗口/CLI 同时写同一目录时显式开启 `concurrency.mode=multi-process`。写入在跨进程锁内重载并校验；编辑冲突返回 `STALE_VERSION`，不静默覆盖。原生锁来自可选依赖 `fs-ext`，不可用时状态页显示 `in-process`，只能单写者。
+- **网络盘**：检测到 NFS/SMB 等网络文件系统且未显式配置 `filesystem=nfs` 时拒绝共享写入；NFS 有隔离探针，但真实双客户端尚未验收，发布不宣称“支持任意 NAS”。
 - **软删除**：`/memlite-forget` 追加删除记录，条目不再被召回；当前没有一键恢复命令，误删需手工处理。
 - **敏感闸**：写前扫描密码、API 密钥、身份证、银行卡（Luhn）、手机号、JWT、PEM 私钥；命中即拒。
 - **嵌入三档**：默认 `none`（纯 BM25，零外网）；`openai-compatible` 会把文本发给配置的嵌入服务；`host` 在 DSH 0.2.x 不可用，加载时告警并回退 BM25。
@@ -94,6 +100,7 @@
 - 📝 **Obsidian 整合**：`/memlite-import`、`/memlite-export`、`/memlite-vault-status`
 - 🔐 **密钥安全**：`credentials.resolve(ref)` 注入，永不入配置/数据仓/日志
 - 📦 **项目级隔离**：项目级 `.memlite/` 优先，用户级回退
+- 🧵 **多窗口并发**：默认单写者；可开启本地多进程，写入排队、条件写冲突显式提示
 - 🔄 **git 同步**：白名单 + pathspec commit（不卷走用户暂存）+ sha 双通道核验
 - 🛡️ **敏感闸**：写前扫描密码/密钥/身份证/银行卡/手机号/JWT/PEM，命中即拒
 
@@ -154,6 +161,24 @@
 - 关闭 `enabled` 立即停止规则注入、召回与提醒，工具/命令回执拒绝；重启后不再加载；
 - 该页面由插件自带的浏览器半区注册（`plugins.row.config`），不是设置页的自动渲染。
 
+### 并发与多窗口（YAML）
+
+默认 `single-writer`。多开 DSH 窗口或同时跑 CLI 写同一库时，在 profile 的 `cordis.patch.yml` 显式开启：
+
+```yaml
+- id: memlite
+  config:
+    concurrency:
+      mode: multi-process   # 多协议写者排队提交
+      filesystem: local     # NFS 需显式 nfs 并通过探针；未验收前不建议
+      lockTimeoutMs: 10000  # 100..120000
+```
+
+- 状态视图会显示锁后端（`flock` / `in-process`）、协议版本与是否跨进程；`in-process` 时只能单写者。
+- 编辑/改挂/忘记仍带 `expectedRevision`；冲突返回 409 + `STALE_VERSION`，草稿保留。
+- 原生锁是可选依赖 `fs-ext`；安装失败不阻塞单写者，但 `multi-process` 会报 `LOCK_UNSUPPORTED`。
+- 跨设备仍用私有 git 同步；不要把库放 SMB/云同步盘；NFS 尚未完成真实双客户端验收。
+
 ### Obsidian 桥（GUI）
 
 配置页的 **Obsidian 桥** 分组可以直接：
@@ -201,6 +226,7 @@ Host/Origin 信任栅栏，仅 owner Peer 可用；Web 与桌面端共用，请�
 | `sync` | `{auto:false}` | 挂载时自动同步（可选 remote） |
 | `embedding` | `none` | `none` / `host`（0.2.x 不可用，回退 BM25）/ `openai-compatible` |
 | `sensitiveGate` | `true` | 写前敏感扫描 |
+| `concurrency` | `{mode:'single-writer',filesystem:'local',lockTimeoutMs:10000}` | 并发与锁；多窗口写入时把 `mode` 设为 `multi-process` |
 
 ## 安装
 

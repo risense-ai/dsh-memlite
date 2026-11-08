@@ -22,6 +22,12 @@ export interface EmbeddingConfig {
   timeoutMs?: number
 }
 
+export interface ConcurrencySettings {
+  mode: 'single-writer' | 'multi-process'
+  filesystem: 'local' | 'nfs'
+  lockTimeoutMs: number
+}
+
 export interface PluginConfig {
   /** 总开关。 */
   enabled: boolean
@@ -40,6 +46,7 @@ export interface PluginConfig {
   sync: { auto: boolean; remote?: string }
   embedding: EmbeddingConfig
   sensitiveGate: boolean
+  concurrency: ConcurrencySettings
 }
 
 export const Config = Schema.object({
@@ -73,6 +80,14 @@ export const Config = Schema.object({
   }).default({}) as unknown as Schema<EmbeddingConfig>,
   sensitiveGate: Schema.boolean().default(true)
     .description('写前敏感扫描（密码/密钥/身份证/JWT/PEM），命中即拒'),
+  concurrency: Schema.object({
+    mode: Schema.union(['single-writer', 'multi-process'] as const).default('single-writer')
+      .description('single-writer=单写者（默认）；multi-process=多个 DSH 窗口/CLI 同时写同一库，写入排队提交'),
+    filesystem: Schema.union(['local', 'nfs'] as const).default('local')
+      .description('local=本地盘；nfs=显式开启 NFS 探针（未完成真实双客户端验收，不建议默认开启）'),
+    lockTimeoutMs: Schema.number().default(10000).min(100).max(120000)
+      .description('跨进程锁有界等待（毫秒）；超时报 LOCK_TIMEOUT'),
+  }).default({}) as unknown as Schema<ConcurrencySettings>,
 }).volatile() as unknown as Schema<PluginConfig>
 
 /** 运行中的配置引用：Settings/Loader 会把 volatile 根对象解析成这个形状。 */

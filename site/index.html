@@ -198,6 +198,7 @@
     <nav>
       <a href="#how" data-zh>它能做什么</a><a href="#how" data-en style="display:none">What it does</a>
       <a href="#trust" data-zh>为什么可信</a><a href="#trust" data-en style="display:none">Why trust it</a>
+      <a href="#concurrency" data-zh>多窗口</a><a href="#concurrency" data-en style="display:none">Concurrency</a>
       <a href="#start" data-zh>怎么开始</a><a href="#start" data-en style="display:none">Get started</a>
       <a href="#faq" data-zh>常见问题</a><a href="#faq" data-en style="display:none">FAQ</a>
       <a href="https://github.com/risense-ai/dsh-memlite" data-zh>GitHub</a><a href="https://github.com/risense-ai/dsh-memlite" data-en style="display:none">GitHub</a>
@@ -351,8 +352,40 @@
     </ul>
   </section>
 
+  <section id="concurrency">
+    <h2><span class="no">03</span><span data-zh>多窗口、多进程同时用</span><span data-en style="display:none">Multiple windows and processes</span></h2>
+    <p class="lead" data-zh>默认是单写者：一台机器上由一个 DSH 实例负责写。多开窗口、再跑 CLI 时，可以显式开启本地多进程；写入会排队，不会互相覆盖。</p>
+    <p class="lead" data-en style="display:none">By default there is one writer per library. If you open several DSH windows or also use the CLI, enable local multi-process mode: writes queue up instead of overwriting each other.</p>
+    <div class="grid">
+      <div class="card">
+        <h3 data-zh>默认：单写者</h3><h3 data-en style="display:none">Default: one writer</h3>
+        <p data-zh>适合日常使用。读取可以并发；写入走同一把协作锁。只有单个 DSH 实例写入时，不需要额外配置。</p>
+        <p data-en style="display:none">Best for everyday use. Reads can run concurrently; writes take the same cooperative lock. No extra setup when only one DSH instance writes.</p>
+      </div>
+      <div class="card">
+        <h3 data-zh>开启：本地多进程</h3><h3 data-en style="display:none">Enable: local multi-process</h3>
+        <p data-zh>在配置的 <code>concurrency</code> 段设置 <code>mode</code> 为 <code>multi-process</code>。多个 DSH 窗口与 CLI 同时写同一目录时，每次提交在锁内重新校验，不会丢新增；同一条记忆的编辑冲突会提示“已被其他窗口修改”。</p>
+        <p data-en style="display:none">Set <code>concurrency.mode</code> to <code>multi-process</code>. Multiple DSH windows and the CLI can write the same directory; each commit re-validates under the lock, so new entries are not lost. Editing the same memory elsewhere returns a “modified in another window” conflict.</p>
+      </div>
+      <div class="card">
+        <h3 data-zh>编辑冲突不静默覆盖</h3><h3 data-en style="display:none">Conflicts are explicit</h3>
+        <p data-zh>界面编辑带版本号；另一个窗口先保存后，本次保存会提示冲突并保留草稿。刷新后再决定重试或放弃，不自动覆盖。</p>
+        <p data-en style="display:none">UI edits carry a revision. If another window saved first, the save reports a conflict and keeps your draft. Refresh, then retry or discard — nothing is overwritten silently.</p>
+      </div>
+      <div class="card">
+        <h3 data-zh>跨设备与 NAS</h3><h3 data-en style="display:none">Other machines and NAS</h3>
+        <p data-zh>跨设备仍用私有 git 同步；不要用 SMB/云同步盘当共享库。NFS 有显式开关与隔离探针，但尚未完成真实双客户端验收，默认不建议开启。</p>
+        <p data-en style="display:none">Use private git sync across machines; do not put the library on SMB or a cloud-sync folder. NFS has an explicit opt-in and a probe, but real two-client validation is not complete, so it is not recommended by default.</p>
+      </div>
+    </div>
+    <div class="note" style="margin-top:18px">
+      <span data-zh><b>状态页看哪里：</b>「状态」视图会显示当前锁后端（<code>flock</code> 或 <code>in-process</code>）、协议版本与数据代次。若显示 <code>in-process</code>，说明原生锁不可用，此时只能保证单写者，不要多开写库。</span>
+      <span data-en style="display:none"><b>In the status view:</b> the lock backend (<code>flock</code> or <code>in-process</code>), protocol version and data generation are shown. If it says <code>in-process</code>, native locking is unavailable: only a single writer is safe.</span>
+    </div>
+  </section>
+
   <section id="start">
-    <h2><span class="no">03</span><span data-zh>怎么开始</span><span data-en style="display:none">Get started</span></h2>
+    <h2><span class="no">04</span><span data-zh>怎么开始</span><span data-en style="display:none">Get started</span></h2>
     <p class="lead" data-zh>不用背命令。装好之后，日常只需要说一句「记：」。</p>
     <p class="lead" data-en style="display:none">No commands to memorize. Once installed, day-to-day use is just “remember:”.</p>
     <div class="start-grid">
@@ -390,7 +423,7 @@
   </section>
 
   <section id="faq">
-    <h2><span class="no">04</span><span data-zh>常见问题</span><span data-en style="display:none">FAQ</span></h2>
+    <h2><span class="no">05</span><span data-zh>常见问题</span><span data-en style="display:none">FAQ</span></h2>
     <div class="faq">
       <details>
         <summary><span data-zh>记错了怎么改？</span><span data-en style="display:none">How do I fix a wrong memory?</span></summary>

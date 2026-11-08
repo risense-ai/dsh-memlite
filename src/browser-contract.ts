@@ -357,8 +357,17 @@ export interface MemoryRecallFeedbackResponse {
 
 export type MemoryDataScope = 'project' | 'user' | 'custom'
 
+export interface MemoryConcurrencyStatus {
+  mode: 'single-writer' | 'multi-process'
+  lockBackend: 'flock' | 'in-process'
+  crossProcess: boolean
+  storageProtocol: number
+}
+
 export interface MemoryStatusResponse {
   engine: number
+  /** 旧宿主/旧引擎可能没有该字段；客户端按可选处理。 */
+  concurrency?: MemoryConcurrencyStatus
   library: {
     enabled: boolean
     records: number

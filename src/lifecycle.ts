@@ -48,6 +48,11 @@ export function toMemliteConfig(config: PluginConfig): MemliteConfig {
       timeoutMs: config.embedding.timeoutMs,
     },
     sensitiveGate: config.sensitiveGate,
+    concurrency: {
+      mode: config.concurrency?.mode ?? 'single-writer',
+      filesystem: config.concurrency?.filesystem ?? 'local',
+      lockTimeoutMs: config.concurrency?.lockTimeoutMs ?? 10_000,
+    },
   }
 }
 
