@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.2 (2026-11-09)
+
+依赖与安装修复，无运行时行为变化。
+
+- `@rsrsai/memlite` 升级到 `^0.3.1`：`fs-ext` 从自动安装的可选依赖改为**可选 peerDependency**，
+  在没有 Node 原生编译工具链的机器上安装本插件不再触发 pnpm 依赖构建审批（`ERR_PNPM_IGNORED_BUILDS`）
+  与插件管理器回滚；需要 `multi-process` 时显式安装 `fs-ext` 即可。
+- README 补充「没有原生编译工具链（装不上 fs-ext）时」：0.3.1+ 直接安装、旧版 profile 兜底设置、
+  `multi-process` 启用方式与日志排查；「实测记录」补消费者矩阵验证。
+- 无运行时逻辑、cordis 配置或数据格式变化。
+
 ## 0.6.1 (2026-11-08)
 
 品牌图标 + 「设置」入口。

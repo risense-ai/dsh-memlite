@@ -5,7 +5,7 @@
 
 ## 状态
 
-✅ **0.6.0 并发协议接入**（2026-11-08，源码；npm 发布版仍为 0.5.0）：依赖 `@rsrsai/memlite@^0.3.0`，
+✅ **0.6.0 并发协议接入**（2026-11-08，随 0.6.1 发布）：依赖 `@rsrsai/memlite@^0.3.0`，
 默认单写者，可显式开启本地多进程；状态页新增并发与锁后端，介绍页新增「多窗口、多进程同时用」。
 写入路径改为同一代次快照与锁内条件写；跨设备仍用 git 同步，NFS 未验收前不建议开启。
 
@@ -182,6 +182,7 @@
 - 状态视图会显示锁后端（`flock` / `in-process`）、协议版本与是否跨进程；`in-process` 时只能单写者。
 - 编辑/改挂/忘记仍带 `expectedRevision`；冲突返回 409 + `STALE_VERSION`，草稿保留。
 - 原生锁是可选依赖 `fs-ext`；安装失败不阻塞单写者，但 `multi-process` 会报 `LOCK_UNSUPPORTED`。
+  装不上 fs-ext 的机器怎么装见上文「安装 → 没有原生编译工具链（装不上 fs-ext）时」。
 - 跨设备仍用私有 git 同步；不要把库放 SMB/云同步盘；NFS 尚未完成真实双客户端验收。
 
 ### Obsidian 桥（GUI）
@@ -245,7 +246,32 @@ dsh plugin --profile <profile> add @rsrsai/dsh-memlite
 装好后从「设置」→「Memlite 记忆」或侧栏「插件」→「Memlite 记忆」→「配置」进入设置；默认值即可用。日常说「记：」即可，不必背命令。
 记忆浏览器随插件加载，无需额外配置（宿主需 DSH 0.2.2-alpha.2+，提供右侧栏页类型注册面）。
 
-本地开发装载（在仓库根目录）：
+### 没有原生编译工具链（装不上 fs-ext）时
+
+`@rsrsai/memlite@0.3.1` 起，`fs-ext` 从自动安装的可选依赖改为**可选 peerDependency**：安装本插件时不再下载 / 构建它，
+因此没有编译工具链的机器也能直接安装，不会再出现 pnpm 未批准构建脚本（`ERR_PNPM_IGNORED_BUILDS`）导致的回滚。
+memlite 会自动使用 `in-process` 单写者锁，单窗口 / 单进程使用与默认配置完全一致。
+
+- **能直接装**：profile 解析到 `@rsrsai/memlite@0.3.1` 及以上时无需任何额外设置（新装 profile 默认如此）。
+- **命中旧版（profile 仍锁定 0.3.0）时首次安装/更新仍会提示依赖构建脚本**，任选其一：
+  - 方式 1（干净）：在 `~/.dsh/profiles/<profile>/pnpm-workspace.yaml` 里显式拒绝该构建脚本，再安装/更新：
+
+    ```yaml
+    allowBuilds:
+      fs-ext: false
+    ```
+
+    文件里若已有管理器写入的占位 `fs-ext: 'set this to true or false'`，把值改成 `false` 即可（不要重复加键）。
+  - 方式 2：GUI 首次失败后点 **「允许这些脚本并重试」**——node-gyp 编译失败会被 pnpm 跳过，安装仍然成功
+    （安装日志里出现 gyp 错误属预期，不影响使用）。
+  - 装好后重新安装 / 更新一次本插件，pnpm 重新解析依赖即会拿到 0.3.1，之后不再触发。
+- **需要 `multi-process` 多进程锁**：显式安装 `fs-ext` 并批准其构建（需本机编译工具），例如
+  `dsh plugin --profile <profile> add fs-ext@^2.1.1`；缺省时 `multi-process` 报 `LOCK_UNSUPPORTED`。
+- **校验**：状态视图「并发与锁」或 `/memlite-status` 会显示锁后端 `in-process`、非跨进程。
+- **排查**：安装日志在 `~/.dsh/profiles/<profile>/.plugin-manager/logs/operation-*/pnpm.log`，出现
+  `Ignored build scripts: fs-ext@2.1.1` 即命中了旧版 memlite。
+
+### 本地开发装载（在仓库根目录）
 
 ```bash
 pnpm install
@@ -270,6 +296,16 @@ dsh plugin --profile <profile> add .
   `dsh.client.inject` 需列 `@deepseek-ai/dsh-client-ui-sidebar-right`，客户端 bundle 仍只外置 react / react/jsx-runtime。
 - **记忆浏览器路由**：隔离实例真机实测——登录态 `POST /api/memlite/browser/list` 返回 200 + `engine`；
   未认证 401、跨站 Origin 403；`plugins/??@rsrsai/dsh-memlite/client.js` 组合包 200 且为 ModuleLoader factory 形状。
+- **无 fs-ext 环境安装（旧版 memlite 0.3.0）**：macOS 12.6 + CommandLineTools 12（clang 不支持 Node 24 头文件要求的 `-std=gnu++20`）
+  真机上 `fs-ext@2.1.1` 的 node-gyp 编译必失败。profile 写入 `allowBuilds: {fs-ext: false}` 后 pnpm 安装 0.6.1 一次成功；
+  `loadFsExt()` 返回 `null`，引擎 `status().concurrency` 为 `{mode: 'single-writer', lock_backend: 'in-process', cross_process: false}`，
+  开启 `multi-process` 报 `LockUnsupportedError`。另实测 `allowBuilds: {fs-ext: true}` 时 optional 依赖编译失败被 pnpm 跳过、
+  退出码仍为 0（即 GUI「允许这些脚本并重试」时管理器执行的 `pnpm add` 同样能装成功）。
+- **fs-ext 改为可选 peer 的安装验证（memlite 0.3.1）**：对 `pnpm pack` 出的 tarball 做消费者矩阵——
+  pnpm 9.15（默认 / `auto-install-peers=false`）、pnpm 11.28.5（默认 / false）、npm 全部 exit 0，均未安装 `fs-ext`、
+  无构建审批报错；运行期 `loadFsExt()` 为 `null`、`lock_backend` 为 `in-process`。另用 dsh-memlite 0.6.1 tarball
+  以 pnpm `overrides` 指向 memlite 0.3.1 模拟 DSH profile 安装（`autoInstallPeers` true/false 两种）：
+  exit 0、不装 `fs-ext`、无 `ERR_PNPM_IGNORED_BUILDS`。
 
 ## 测试
 
