@@ -1,7 +1,7 @@
 {
   "name": "@rsrsai/dsh-memlite",
   "packageManager": "pnpm@9.15.0",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "description": "DSH plugin: persistent local memory powered by @rsrsai/memlite (respire-aligned prompt/recall/wrap-up logic; JSONL causal tree, git sync, data-compatible with Rust memlite; four-view memory browser with conditional writes, receipts and status).",
   "icon": "./icon.svg",
   "type": "module",

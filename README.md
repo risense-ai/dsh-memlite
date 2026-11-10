@@ -5,6 +5,13 @@
 
 ## 状态
 
+✅ **0.7.0 DSH 会话历史导入**（2026-11-10）：把宿主 DSH 落盘的会话历史
+（`~/.dsh/sessions/<cwd 编码>/<session-id>/session.v4.jsonl.zstd`）抽成记忆——
+会话里显式存过的记忆、每个会话一条摘要、可选的用户事实；先 dry-run 出报告，再按稳定锚 + 内容 hash
+幂等入库。新增 `/memlite-session-import`、`/memlite-session-list` 两个命令与两条
+`api/memlite/session/{import,list}` 路由，配置页新增「DSH 会话历史导入」分组（GUI）。
+只读本机会话；记忆里不写绝对路径；敏感内容被敏感闸跳过。zstd 解压需要 Node ≥ 22.15。
+
 ✅ **0.6.0 并发协议接入**（2026-11-08，随 0.6.1 发布）：依赖 `@rsrsai/memlite@^0.3.0`，
 默认单写者，可显式开启本地多进程；状态页新增并发与锁后端，介绍页新增「多窗口、多进程同时用」。
 写入路径改为同一代次快照与锁内条件写；跨设备仍用 git 同步，NFS 未验收前不建议开启。
@@ -27,7 +34,7 @@
 | 存储 | 加密 SQLite（`~/.rsrs/rsrs.db`） | 明文 JSONL + `emb.f32` 侧车 |
 | 同步 | 密文云同步（服务端不持密钥） | git 白名单同步 |
 | 项目隔离 | 单库 + `project` 范围过滤 | 项目级库目录 + 用户级回退 |
-| 命令面 | 无斜杠命令，走 `rsrs` CLI | 16 个 `/memlite-*` |
+| 命令面 | 无斜杠命令，走 `rsrs` CLI | 18 个 `/memlite-*` |
 | 生态 | 12 个宿主插件共用同一 `rsrs` 库 | Harness / CLI / AstrBot / Obsidian 桥；Rust / TS / Python 数据互通 |
 | 评测 | 自建中文集 hit@5=78.7%（2026-09，277 题）；LongMemEval 未跑 | BM25 hit@1=85%（与 Rust memlite 对齐） |
 | 共同点 | 规则注入 / pre-step 召回 / status 体检 / 敏感闸 / 读回校验 / 收尾 steer / 失败回执 | 同左 |
@@ -61,7 +68,7 @@
 3. **turn-stopping**：不查库、不写库，满足条件时 `agent.steer` 一条「收尾自查」提醒（每轮最多一次）。
 4. **模型工具**：`memlite_recall` / `memlite_show` / `memlite_remember` / `memlite_update` / `memlite_attach`
    —— 等价于 respire 让模型执行 rsrs CLI 的那条通道。
-5. **命令面**：原 16 个 `/memlite-*` 不变（recall/remember/show/tree/chain/import/export…）。
+5. **命令面**：18 个 `/memlite-*`（0.7.0 新增 `session-import` / `session-list`）。
 6. **记忆浏览器**：会话右侧 Memory 页签——本次对话召回账本与逐条解释、全库搜索/筛选/分页、
    因果树、运行状态；存入/编辑/续写/改挂/忘记经 `connection.fetch` 的写入路由与条件写读回。
    认证/信任栅栏由宿主负责，浏览器不直接读写文件。聊天回复内嵌入口因宿主无稳定 reply-action slot，
@@ -87,6 +94,8 @@
 | `/memlite-import <vault-path> [--dry-run]` | Obsidian vault 导入记忆库（建议先 dry-run） |
 | `/memlite-export <output-path> [--overwrite]` | 记忆库导出为 vault |
 | `/memlite-vault-status <vault-path>` | 同步态查询（synced/outdated/missing） |
+| `/memlite-session-import [--dry-run] [--facts] [--no-explicit] [--no-summary] ...` | 从宿主 DSH 会话历史导入记忆（建议先 dry-run） |
+| `/memlite-session-list [--root P] [--cwd P] [--limit N]` | 列出可导入的 DSH 会话 |
 
 ## 特性
 
@@ -98,6 +107,7 @@
 - 🛠️ **模型工具面**：召回、展开、写入、更新、挂链
 - 🧭 **聊天记忆浏览器**：右侧 Memory 页签四视图——本次对话注入与逐条解释、全库搜索/筛选/分页与写入、因果树、运行状态；条件写与统一回执，不需要命令
 - 📝 **Obsidian 整合**：`/memlite-import`、`/memlite-export`、`/memlite-vault-status`
+- 🗂️ **DSH 会话历史导入**：`/memlite-session-import` 把宿主落盘的会话历史抽成记忆（dry-run + 幂等，缺省只读本机）
 - 🔐 **密钥安全**：`credentials.resolve(ref)` 注入，永不入配置/数据仓/日志
 - 📦 **项目级隔离**：项目级 `.memlite/` 优先，用户级回退
 - 🧵 **多窗口并发**：默认单写者；可开启本地多进程，写入排队、条件写冲突显式提示
@@ -199,6 +209,40 @@
 Host/Origin 信任栅栏，仅 owner Peer 可用；Web 与桌面端共用，请求体上限 64 KiB，同一时刻只允许一个导入/导出任务。
 最近使用的路径记在浏览器 localStorage，不写入配置或数据仓。
 
+### DSH 会话历史导入（GUI）
+
+宿主 DSH 会把每个会话逐事件落盘（`~/.dsh/sessions/<cwd 编码>/<session-id>/session.v4.jsonl.zstd`）。
+配置页的 **DSH 会话历史导入** 分组可以直接把它们抽成记忆，复用插件常驻的 `Memlite` 实例与敏感闸：
+
+- **列出会话**：扫描会话根目录，报告会话数、时间、项目、人类消息数与显式记忆数——先看清有哪些可导入；
+- **预览导入**：dry-run，报告将新建 / 将更新 / 不变条数以及跳过明细，不写库；
+- **导入**：正式写入；勾选「仅预览」时等同预览。
+
+三个来源（可用勾选项开关）：
+
+| 来源 | 默认 | 说明 |
+|---|---|---|
+| **显式记忆** | 开 | 会话里真的存过的内容：`memlite_remember` 工具调用、`/memlite-remember` 命令，以及以「记：」开头的用户消息 |
+| **会话摘要** | 开 | 每个至少有 1 条人类消息的会话生成一条摘要（前因 = 项目/日期/消息数，行为 = 前 8 条请求，后果 = 标题与 source） |
+| **用户事实** | 关 | 从人类消息里抽「看起来是可复用约定」的句子（决定/约定/以后/必须/不要/禁止…）；建议导入后复核 |
+
+- **dry-run 与幂等**：同一批会话连导两次，第二次 `created=0, updated=0`，命中的候选全部计入「不变」；
+  去重先按稳定锚 `dsh:<sessionId>:<kind>:<key>`，再按内容 hash（覆盖「宿主当年已自动存过、但没有导入元数据」的记录）。
+  摘要先写、显式记忆与用户事实挂在摘要之下，保证因果父条先存在。
+- **报告**：结果为等宽文本块，逐会话汇总扫描数、事件数、候选数与新建/更新/不变/跳过；单条失败不阻塞整批，敏感闸命中的条目只报类别不回显秘密。
+- **命令用法**（与 GUI 同一条实现）：
+  `/memlite-session-list [--root P] [--cwd P] [--session ID] [--limit N] [--since ISO]`、
+  `/memlite-session-import [--root P] [--cwd P] [--project P] [--session ID] [--limit N] [--since ISO] [--no-explicit] [--no-summary] [--facts] [--dry-run]`
+  —— 参数解析方式与其它 `/memlite-*` 命令一致，默认取最新 20 个会话。
+- **GUI 路由**：`api/memlite/session/{import,list}` 两条精确路由，由 DSH 的 `connection` 服务负责浏览器认证 /
+  Host-Origin 信任栅栏，仅 owner Peer 可用；同一时刻只允许一个会话导入操作，冲突返回 409。
+  最近使用的会话根目录 / cwd / project 与勾选项记在浏览器 localStorage（前缀 `memlite.sessionImport.`），不写入配置或数据仓。
+- **隐私**：只读本机 `~/.dsh/sessions`（不改写、不删除源会话）；记忆里**不写绝对路径**（只保留 `source=dsh-session`、
+  `dsh_anchor`、`dsh_session_id`、`dsh_kind`、`source_hash`、`dsh_project` 等元数据）；
+  密码/密钥/JWT/PEM 等敏感内容在写前被敏感闸跳过，并在报告里计数。
+- **Node 要求**：`.jsonl.zstd` 用 `node:zlib.zstdDecompressSync` 解压，需要 **Node ≥ 22.15**（或 24）；
+  运行时没有该函数会明确报错。gzip / 明文 `.jsonl` 会话不受此限制。解压与解析全部在本地完成，不联网、不新增依赖。
+
 ### 展示名称
 
 插件页卡片和 memlite 行的标题来自 **locale `meta`**，不是包名本身：
@@ -237,7 +281,7 @@ Host/Origin 信任栅栏，仅 owner Peer 可用；Web 与桌面端共用，请�
 
 ## 安装
 
-发布版（npm `@rsrsai/dsh-memlite@0.6.1`）：
+发布版（npm `@rsrsai/dsh-memlite@0.7.0`）：
 
 ```bash
 dsh plugin --profile <profile> add @rsrsai/dsh-memlite
@@ -310,7 +354,7 @@ dsh plugin --profile <profile> add .
 ## 测试
 
 ```bash
-pnpm test   # 198 例：真 cordis 核 + 形状忠实宿主服务替身 + 配置表单/Obsidian 路由/记忆浏览器（Host+Client）+ 独立验收
+pnpm test   # 256 例（255 绿 + 1 默认跳过的真机 smoke）：真 cordis 核 + 形状忠实宿主服务替身 + 配置表单/Obsidian 路由/记忆浏览器（Host+Client）+ DSH 会话导入（核心/路由/配置页）+ 独立验收
 ```
 
 ## 协议

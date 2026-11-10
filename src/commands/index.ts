@@ -1,9 +1,11 @@
 /**
- * 命令面：13 个扁平单 token 命令（M0 漂移四——注册名含空格会被 COMMAND_NAME 正则拒绝）。
+ * 命令面：18 个扁平单 token 命令（13 基础 + 3 Obsidian + 2 DSH 会话导入；
+ * M0 漂移四——注册名含空格会被 COMMAND_NAME 正则拒绝）。
  * 每个命令 = 调 Memlite 主类方法 → CommandResult（{kind, text}，不是 string）。
  */
 import type { Memlite } from '@rsrsai/memlite'
 import { obsidianCommandDefinitions } from './obsidian'
+import { sessionCommandDefinitions } from './session'
 import { flagBool, flagNumber, flagString, parseArgs } from '../args'
 import {
   formatChain,
@@ -164,6 +166,7 @@ export function commandDefinitions(mem: Memlite): CommandDefinition[] {
       })),
 
     ...obsidianCommandDefinitions(mem),
+    ...sessionCommandDefinitions(mem),
   ]
 }
 

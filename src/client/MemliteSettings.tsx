@@ -18,6 +18,7 @@ import {
   type ConfigOp,
   type Draft,
 } from './form'
+import { SessionImportPanel } from './session-import-panel'
 
 export interface PageProps {
   readonly t: (key: string, params?: Record<string, unknown>) => string
@@ -622,6 +623,9 @@ function MemliteConfigForm(props: { t: PageProps['t']; form: ConfigFormLike }): 
           </pre>
         ) : null}
       </Group>
+
+      {/* DSH 会话历史导入：与 Obsidian 桥同构的即时请求分组（只依赖 t）。 */}
+      <SessionImportPanel t={t} />
 
       <Group title={t('groupSecurity')}>
         {boolField('sensitiveGate', t('sensitiveGate'), t('sensitiveGateHint'))}

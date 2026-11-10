@@ -50,10 +50,10 @@ async function post(h: TestHost, route: string, body: unknown): Promise<{ status
 }
 
 describe('Obsidian exact routes', () => {
-  it('注册三条 buffered POST 路由（另有 5 条记忆浏览器只读路由）', async () => {
+  it('注册三条 buffered POST 路由（另有 15 条只读/写路由）', async () => {
     const h = await setup()
-    // 3 条 Obsidian 写路由 + 13 条记忆浏览器路由共用 connection 服务
-    expect(h.connection.routes.size).toBe(16)
+    // 3 条 Obsidian 写路由 + 13 条记忆浏览器路由 + 2 条会话导入路由共用 connection 服务
+    expect(h.connection.routes.size).toBe(18)
     for (const route of [OBSIDIAN_IMPORT_PATH, OBSIDIAN_EXPORT_PATH, OBSIDIAN_STATUS_PATH]) {
       expect(h.connection.routes.get(route)?.methods).toEqual(['POST'])
       expect(h.connection.routes.get(route)?.requestBody).toBe('buffered')

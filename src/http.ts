@@ -1,11 +1,26 @@
 /**
- * 宿主 HTTP 小工具：Obsidian 桥与记忆浏览器路由共用。
+ * 宿主 HTTP 小工具：Obsidian 桥、DSH 会话导入与记忆浏览器路由共用。
  *
  * 只服务 `connection.fetch` 的精确路由：同样是「只接受 POST + application/json、
- * 请求体有上限、错误只回安全文案」这一套，避免两条路由各自漂移。
+ * 请求体有上限、错误只回安全文案」这一套，避免多条路由各自漂移。
  */
 
 export const MAX_REQUEST_BYTES = 64 * 1024
+
+/** 宿主 `connection.fetch` 精确路由的形状（dsh-client-connection Host 面）。 */
+export interface FetchRoute {
+  path: string
+  methods: string[]
+  requestBody?: 'buffered' | 'streaming'
+  fetch(request: Request): Promise<Response> | Response
+}
+
+/** 宿主侧 connection 服务的最小子集（只用到精确路由注册）。 */
+export interface ConnectionService {
+  fetch: {
+    register(route: FetchRoute): () => void
+  }
+}
 
 /** 路由内部错误：status 决定 HTTP 状态码，message 是可以回给浏览器的安全文案。 */
 export class HttpError extends Error {

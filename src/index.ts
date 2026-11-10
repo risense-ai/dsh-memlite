@@ -3,7 +3,7 @@
  *
  * 与 respire-dsh（@rsrsai/dsh）同构的插件逻辑，只把两个面留成 memlite：
  * - 子进程 → 进程内 Memlite（recall/store 不再起 CLI）
- * - 命令面 → 原 16 个 /memlite-* 命令保持不变
+ * - 命令面 → 原 18 个 /memlite-* 命令保持不变
  *
  * 其余全部按 respire-dsh：
  * 1. 静态规则 section（memlite:rules, order 850）
@@ -28,6 +28,7 @@ import { MemoryWriteService, WriteReceiptStore } from './memory-write-service'
 import { ObsidianActivity, SyncActivity, buildMemoryStatus } from './memory-status'
 import { Config, readConfig, resolveConfigRef, type ConfigRef, type PluginConfig } from './schema'
 import { createObsidianHandlers, registerObsidianRoutes, type ConnectionService } from './obsidian'
+import { createSessionImportHandlers, registerSessionRoutes } from './session-import/routes'
 import {
   messageText,
   onEvent,
@@ -137,7 +138,7 @@ export function apply(
     )
   })
 
-  // 2. 命令面：原 16 个 /memlite-* 保持不变（关闭时回执拒绝）。
+  // 2. 命令面：18 个 /memlite-* 命令保持不变（关闭时回执拒绝）。
   context.inject(['commands'], (scoped) => {
     const commands = (scoped as unknown as Scoped).commands
     if (!commands) return
@@ -157,6 +158,9 @@ export function apply(
     if (!connection) return
     const handlers = createObsidianHandlers(() => runtime.mem, obsidianActivity)
     disposers.push(...registerObsidianRoutes(connection, handlers))
+    // DSH 会话历史导入：与 Obsidian 桥同构的精确路由（共享 busy 锁）。
+    const sessionHandlers = createSessionImportHandlers(() => runtime.mem)
+    disposers.push(...registerSessionRoutes(connection, sessionHandlers))
     disposers.push(
       ...registerMemoryRoutes(connection, {
         getMem: () => runtime.mem,

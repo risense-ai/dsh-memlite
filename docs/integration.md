@@ -240,3 +240,83 @@ export const inject = ['credentials', 'commands', 'systemPrompt', 'providers'] a
 3. 双侧 CI 加互通测试覆盖变更点
 4. 发版时 CHANGELOG 标注对侧最低兼容版本
 
+---
+
+## 八、DSH 会话导入：使用的宿主事件格式与 memlite 写入 API
+
+> 0.7.0 新增。完整语义见 [`session-import-contract.md`](./session-import-contract.md)；
+> 本节只记录**与宿主文件格式、memlite 写入面的耦合点**，供任一侧变更时对照。
+> 不新增依赖：zstd/gzip 解压用 `node:zlib` 内置函数，解析/抽取/去重都在本仓内。
+
+### 8.1 源文件（宿主落盘格式，只读）
+
+```
+~/.dsh/sessions/<cwd 编码>/<session-id>/session.v4.jsonl.zstd
+```
+
+- 同一目录按顺序取第一个存在的候选：`session.v4.jsonl.zstd`、`session.v4.jsonl.gz`、
+  `session.v4.jsonl`、`session.jsonl.zstd`；
+- 解压按魔数判断（zstd `28 b5 2f fd` / gzip `1f 8b`，否则按 UTF-8 明文）；
+- zstd 用 `node:zlib.zstdDecompressSync`（Node ≥ 22.15），运行时缺失则抛
+  `当前 Node 不支持 zstd 解压（需要 Node 22.15+）：<path>`；
+- 逐行 `JSON.parse`，坏行计入 `badLines` 而不是抛错。
+
+### 8.2 事件子集（逐行 JSON）
+
+| `type` | 用到的字段 | 用途 |
+|---|---|---|
+| `session` | `version`、`id`、`createdAt`（ms）、`cwd` | 会话 id / 创建时间 / 工作目录 |
+| `user/message` | `seq`、`time`（ms）、`data.role==='user'`、`data.source.kind==='user'`、`data.id`、`data.content[].text` | 人类消息：会话摘要素材、`user-fact` 候选、「记：」显式存储 |
+| `session/title` | `data.title`（可能多次，取最后一次非空） | 会话标题 |
+| `tool/call` | `data.name==='memlite_remember'`、`data.arguments`（JSON 字符串：`content`/`title`/`tags`） | 显式记忆候选 |
+| `command/run` | `data.name==='memlite-remember'`、`data.args`（rawInput，`--title`/`--tags`） | 显式记忆候选 |
+
+其余事件（`system` / `assistant/*` / `tool/result` / `step` / `turn` / `job` / `approval` /
+`request` / `agent/inbox/spliced` …）一律不进候选：`agent/inbox/spliced` 是同一批用户消息的副本，
+重复计入会污染摘要。
+
+### 8.3 memlite 写入 API（复用常驻实例，不另开）
+
+导入器接收调用方的 `Memlite` 实例（`importDshSessionsWith(mem, options)`），
+逐候选写入，不自建实例、不 import memlite-js 内部模块：
+
+```ts
+// 新建：内容 + 平铺元数据 + 可选父子
+await mem.remember(candidate.content, {
+  title: candidate.title,
+  tags: candidate.tags,        // ['dsh-session', 'explicit' | 'session' | 'user-fact', ...]
+  project: candidate.project,
+  ts: candidate.ts,            // 秒级
+  extra: candidate.extra,      // source=dsh-session / dsh_anchor / dsh_session_id / dsh_kind / source_hash / dsh_project
+  parent: summaryId,           // 同会话摘要 id；摘要本身是根
+})
+
+// 命中已有条目且内容 hash 变化：原地追加新版本（extra 按键合并，锚不丢）
+await mem.update(hit.id, { title, content, tags, project, extra })
+
+// 写前敏感闸（与插件其它写入同一套）
+mem.scanOrReject(candidate.title + '\n' + candidate.content)
+```
+
+- `extra.source === 'dsh-session'` 是导入去重与外部识别的唯一标记；`source_hash` 是
+  `sha1(title + '\n' + content)` 的 40 位小写 hex，用于覆盖「宿主当年已自动存过、但没有导入元数据」的记录；
+- dry-run 不调用 `remember`/`update`（不产生真实 id，也不写 `parent`）；命中且 hash 不同计 `wouldUpdate`，
+  否则计 `wouldCreate`；
+- 单条 `scanOrReject`/`remember`/`update` 抛错只记为 `skipped`（`sensitive` / `empty` / `write-error`），
+  继续处理后续候选；整批幂等：同批连导两次，第二次 `created=0, updated=0`。
+
+### 8.4 本仓接口面（不对外新增依赖）
+
+| 位置 | 内容 |
+|---|---|
+| `src/session-import/reader.ts` | 根目录解析、文件发现、解压解行、会话解析、会话清单 |
+| `src/session-import/extract.ts` | 显式记忆 / 会话摘要 / 用户事实 → `SessionCandidate` |
+| `src/session-import/importer.ts` | 去重 + 写库（dry-run 只报告） |
+| `src/session-import/report.ts` | 命令与配置页共用的中文报告文本 |
+| `src/commands/session.ts` | `/memlite-session-import`、`/memlite-session-list` |
+| `src/session-import/routes.ts` | `POST api/memlite/session/{import,list}` |
+| `src/client/session-import-panel.tsx` | 配置页分组（浏览器半区只写字面量路由，不 import 服务端模块） |
+
+宿主侧变更（新事件类型、文件名、zstd 版本）时：先改 `docs/session-import-contract.md`，
+再改 reader/extract，并同步本节与 `MEMLITE_REAL_SESSIONS=1` 的真机只读冒烟。
+

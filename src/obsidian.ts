@@ -26,7 +26,13 @@ import {
   optionalBoolean,
   optionalString as optionalText,
   readJson,
+  type ConnectionService,
+  type FetchRoute,
 } from './http'
+
+// 路由形状类型从 http.ts 统一导出；此处 re-export 保持既有导入面（memory-routes.ts、
+// src/index.ts 与测试都从 './obsidian' 取这两个类型）。
+export type { ConnectionService, FetchRoute }
 
 export const OBSIDIAN_IMPORT_PATH = '/api/memlite/obsidian/import'
 export const OBSIDIAN_EXPORT_PATH = '/api/memlite/obsidian/export'
@@ -38,20 +44,6 @@ export const OBSIDIAN_CLIENT_PATHS = {
   export: OBSIDIAN_EXPORT_PATH.slice(1),
   status: OBSIDIAN_STATUS_PATH.slice(1),
 } as const
-
-export interface FetchRoute {
-  path: string
-  methods: string[]
-  requestBody?: 'buffered' | 'streaming'
-  fetch(request: Request): Promise<Response> | Response
-}
-
-/** 宿主侧 connection 服务的最小子集。 */
-export interface ConnectionService {
-  fetch: {
-    register(route: FetchRoute): () => void
-  }
-}
 
 const MAX_PATH_CHARS = 1000
 

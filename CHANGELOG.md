@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.7.0 (2026-11-10)
+
+从插件宿主的 DSH 会话历史导入记忆（与 Obsidian 桥同构：读源 → 抽候选 → 幂等写库）。
+
+- **新能力**：读取宿主落盘的 `~/.dsh/sessions/<cwd 编码>/<session-id>/session.v4.jsonl.zstd`
+  （以及 `.gz` / 明文 `.jsonl` 候选），逐行解析事件流，抽取三类候选：
+  **显式记忆**（会话里真的存过的 `memlite_remember` 工具调用、`/memlite-remember` 命令、「记：」消息，默认开）、
+  **会话摘要**（每个有 ≥1 条人类消息的会话一条，默认开）、
+  **用户事实**（可复用的约定句，默认关）。
+  按稳定锚 `dsh:<sessionId>:<kind>:<key>` + 内容 hash 去重，同批连导两次第二次全部「不变」；
+  摘要先写、显式记忆与用户事实挂在其下；单条失败不阻塞整批，dry-run 只报告不写库。
+- **命令**：新增 `/memlite-session-import [--root/--cwd/--project/--session/--limit/--since/--no-explicit/--no-summary/--facts/--dry-run]`
+  与 `/memlite-session-list [...]`，命令总数 16 → **18**。
+- **路由**：新增 `POST /api/memlite/session/import`、`POST /api/memlite/session/list`
+  （`connection.fetch` 精确路由，共用单任务互斥锁，冲突 409；总数 16 → **18**）。
+  响应 `{ ok, text, report? }`，请求体字段全部可选并做类型校验。
+- **配置页 / 设置对话框**：新增「DSH 会话历史导入」分组（Obsidian 桥之后），
+  「列出会话 / 预览导入 / 导入」三个按钮 + 路径输入 + 四个来源/预览勾选项，
+  结果显示为等宽文本块；路径与勾选项记在浏览器 localStorage，失败显示统一错误文案。中英字典同步。
+- **隐私**：只读本机会话；记忆里不写绝对路径（只保留 `source=dsh-session` 等锚元数据）；
+  敏感内容写前被敏感闸跳过并计入报告。`.zstd` 解压需要 Node ≥ 22.15，无该函数时明确报错；不新增依赖。
+- **测试**：新增会话导入核心 / 路由 / 命令 / 配置页用例（全套 **256 例**：255 绿 + 1 默认跳过的真机 smoke），
+  `MEMLITE_REAL_SESSIONS=1` 可用真实 `~/.dsh/sessions` 跑只读 dry-run 冒烟。
+- 文档：README 新增「DSH 会话历史导入（GUI）」；[`docs/integration.md`](./docs/integration.md) 补宿主事件格式与 memlite 写入 API 一节；
+  实现契约见 [`docs/session-import-contract.md`](./docs/session-import-contract.md)。
+
 ## 0.6.2 (2026-11-09)
 
 依赖与安装修复，无运行时行为变化。

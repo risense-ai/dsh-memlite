@@ -33,12 +33,12 @@ async function hostWithPlugin() {
 }
 
 describe('命令注册', () => {
-  it('16 个命令（13+3 Obsidian）', async () => {
+  it('18 个命令（13 基础 + 3 Obsidian + 2 会话导入）', async () => {
     const h = await hostWithPlugin()
     for (const name of ['memlite-import', 'memlite-export', 'memlite-vault-status']) {
       expect(h.commands.definitions.has(name), name).toBe(true)
     }
-    expect(h.commands.definitions.size).toBe(16)
+    expect(h.commands.definitions.size).toBe(18)
   })
 })
 
